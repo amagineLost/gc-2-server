@@ -20,7 +20,6 @@ if not DISCORD_TOKEN:
 intents = discord.Intents.default()
 intents.members = True            # Enable access to server members
 intents.message_content = True    # Enable access to message content
-intents.guilds = True             # Enable access to guilds (for slash commands)
 
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -68,10 +67,6 @@ def get_custom_message(compatibility_percentage):
 # Excluded users (by ID and username)
 EXCLUDED_USER_IDS = [743263377773822042]
 EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
-
-# Function to truncate long deleted messages
-def truncate_message(content, max_length=100):
-    return content if len(content) <= max_length else content[:max_length] + '...'
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
@@ -125,51 +120,18 @@ class MyBot(commands.Cog):
         )
         await interaction.response.send_message(commands_list, ephemeral=True)
 
-# Event listener for when a message is deleted
-@bot.event
-async def on_message_delete(message):
-    try:
-        if message.author.bot:
-            return
-
-        reply_info = ""
-        if message.reference and message.reference.resolved:
-            replied_to = message.reference.resolved
-            reply_info = f"(This was a reply to {replied_to.author.mention})"
-
-        deleted_message_info = (
-            f"🔴 {message.author.mention} just deleted a message: '{truncate_message(message.content)}' {reply_info} "
-            f"in {message.channel.mention}."
-        )
-
-        await message.channel.send(deleted_message_info)
-
-    except Exception as e:
-        logging.error(f"Error in on_message_delete event: {e}")
-
 # Event when the bot is ready
 @bot.event
 async def on_ready():
     try:
         logging.info(f'Logged in as {bot.user}!')
 
-        # Sync commands with all the guilds the bot is in
-        for guild in bot.guilds:
-            await bot.tree.sync(guild=guild)
-            logging.info(f"Slash commands synced for guild {guild.id}: {guild.name}")
+        # Sync commands globally (for all guilds)
+        await bot.tree.sync()
+        logging.info("Slash commands globally synced.")
 
     except Exception as e:
         logging.error(f"Error during on_ready: {e}")
-
-# Event listener for when a member joins the server
-@bot.event
-async def on_member_join(member):
-    logging.info(f"New member joined: {member.name} in {member.guild.name}")
-
-# Event listener for when a member leaves the server
-@bot.event
-async def on_member_remove(member):
-    logging.info(f"Member left: {member.name} in {member.guild.name}")
 
 # Error handling for command errors
 @bot.event
@@ -188,9 +150,9 @@ async def setup_hook():
         await bot.add_cog(MyBot(bot))
         logging.info("Successfully added the MyBot cog.")
 
-        # Force sync after adding the cog
-        for guild in bot.guilds:
-            await bot.tree.sync(guild=guild)
+        # Global sync for all commands instead of per guild
+        await bot.tree.sync()
+        logging.info("Global slash commands synced.")
 
     except Exception as e:
         logging.error(f"Error adding cog: {e}")
