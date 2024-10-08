@@ -68,6 +68,10 @@ def get_custom_message(compatibility_percentage):
 EXCLUDED_USER_IDS = [743263377773822042]
 EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 
+# Special user IDs or display names for increased chance of being picked
+ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
+ALLIE_ID = 987654321  # Replace with Allie's actual ID
+
 # Define the cog for application commands
 class MyBot(commands.Cog):
     def __init__(self, bot):
@@ -86,6 +90,13 @@ class MyBot(commands.Cog):
                 member.id not in EXCLUDED_USER_IDS and 
                 member.display_name not in EXCLUDED_USER_NAMES
             ]
+
+            # Add Zeeke and Allie multiple times to increase their chances
+            zeeke = discord.utils.get(interaction.guild.members, id=ZEKE_ID)
+            allie = discord.utils.get(interaction.guild.members, id=ALLIE_ID)
+
+            if zeeke and allie:
+                eligible_members.extend([zeeke, allie] * 5)  # Add them 5 times to increase their chance
 
             # Ensure we have at least two members to ship
             if len(eligible_members) < 2:
