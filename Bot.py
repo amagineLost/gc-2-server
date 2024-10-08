@@ -137,6 +137,28 @@ class MyBot(commands.Cog):
         )
         await interaction.response.send_message(commands_list, ephemeral=True)
 
+# Message delete detection
+@bot.event
+async def on_message_delete(message):
+    try:
+        if message.author.bot:
+            return
+
+        reply_info = ""
+        if message.reference and message.reference.resolved:
+            replied_to = message.reference.resolved
+            reply_info = f"(This was a reply to {replied_to.author.mention})"
+
+        deleted_message_info = (
+            f"🔴 {message.author.mention} just deleted a message: '{message.content}' {reply_info} "
+            f"in {message.channel.mention}."
+        )
+
+        await message.channel.send(deleted_message_info)
+
+    except Exception as e:
+        logging.error(f"Error in on_message_delete event: {e}")
+
 # Event when the bot is ready
 @bot.event
 async def on_ready():
