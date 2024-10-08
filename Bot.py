@@ -116,6 +116,15 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /ship command: {e}")
             await interaction.followup.send("An error occurred while processing the ship command. Please try again later.", ephemeral=True)
 
+    # Register the help command
+    @app_commands.command(name="help", description="Displays a list of available commands.")
+    async def help_command(self, interaction: discord.Interaction):
+        commands_list = (
+            "**/ship**: Ship two random members together with a love score!\n"
+            "**/help**: Show this help message."
+        )
+        await interaction.response.send_message(commands_list, ephemeral=True)
+
 # Event listener for when a message is deleted
 @bot.event
 async def on_message_delete(message):
@@ -143,13 +152,35 @@ async def on_message_delete(message):
 async def on_ready():
     try:
         logging.info(f'Logged in as {bot.user}!')
-        
-        guild = discord.Object(id=1292553890541207695)
-        synced = await bot.tree.sync(guild=guild)
-        logging.info(f"Slash commands synced for guild {guild.id}: {synced}")
+
+        # Sync commands with all the guilds the bot is in
+        for guild in bot.guilds:
+            await bot.tree.sync(guild=guild)
+            logging.info(f"Slash commands synced for guild {guild.id}: {guild.name}")
 
     except Exception as e:
         logging.error(f"Error during on_ready: {e}")
+
+# Event listener for when a member joins the server
+@bot.event
+async def on_member_join(member):
+    logging.info(f"New member joined: {member.name} in {member.guild.name}")
+
+# Event listener for when a member leaves the server
+@bot.event
+async def on_member_remove(member):
+    logging.info(f"Member left: {member.name} in {member.guild.name}")
+
+# Error handling for command errors
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You do not have permission to use this command.", ephemeral=True)
+    elif isinstance(error, commands.CommandNotFound):
+        await ctx.send("That command does not exist.", ephemeral=True)
+    else:
+        logging.error(f"Unexpected error: {error}")
+        await ctx.send("An unexpected error occurred.", ephemeral=True)
 
 # Add the cog to the bot and force command sync
 async def setup_hook():
@@ -158,8 +189,8 @@ async def setup_hook():
         logging.info("Successfully added the MyBot cog.")
 
         # Force sync after adding the cog
-        guild = discord.Object(id=1292553890541207695)
-        await bot.tree.sync(guild=guild)
+        for guild in bot.guilds:
+            await bot.tree.sync(guild=guild)
 
     except Exception as e:
         logging.error(f"Error adding cog: {e}")
