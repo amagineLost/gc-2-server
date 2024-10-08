@@ -68,7 +68,7 @@ def get_custom_message(compatibility_percentage):
 EXCLUDED_USER_IDS = [743263377773822042]
 EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 
-# Special user IDs or display names for increased chance of being picked
+# Special user IDs or display names for guaranteed 100% compatibility
 ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
 ALLIE_ID = 987654321  # Replace with Allie's actual ID
 
@@ -96,7 +96,7 @@ class MyBot(commands.Cog):
             allie = discord.utils.get(interaction.guild.members, id=ALLIE_ID)
 
             if zeeke and allie:
-                eligible_members.extend([zeeke, allie] * 5)  # Add them 5 times to increase their chance
+                eligible_members.extend([zeeke, allie] * 10)  # Add them 10 times to increase their chance
 
             # Ensure we have at least two members to ship
             if len(eligible_members) < 2:
@@ -107,11 +107,17 @@ class MyBot(commands.Cog):
             random.shuffle(eligible_members)
             person1, person2 = eligible_members[:2]
 
-            # Generate a random compatibility percentage
-            compatibility_percentage = random.randint(0, 100)
-
-            # Get the custom message based on the compatibility percentage
-            custom_message = get_custom_message(compatibility_percentage)
+            # Check if Zeeke and Allie are the chosen members
+            if ((person1.id == ZEKE_ID and person2.id == ALLIE_ID) or
+                (person1.id == ALLIE_ID and person2.id == ZEKE_ID)):
+                # Always give them 100% compatibility
+                compatibility_percentage = 100
+                custom_message = "These two are a match made in heaven! 💖"
+            else:
+                # Generate a random compatibility percentage
+                compatibility_percentage = random.randint(0, 100)
+                # Get the custom message based on the compatibility percentage
+                custom_message = get_custom_message(compatibility_percentage)
 
             # Send the ship result with the compatibility percentage and custom message
             await interaction.followup.send(
