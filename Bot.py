@@ -284,6 +284,24 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /remove_marriage command: {e}")
             await interaction.response.send_message("An error occurred while removing the marriage.", ephemeral=True)
 
+    # Check marriages command: List all current marriages (accessible by everyone)
+    @app_commands.command(name="check_marriages", description="Check all current marriages.")
+    async def check_marriages(self, interaction: discord.Interaction):
+        try:
+            if not marriages:
+                await interaction.response.send_message("There are no current marriages.", ephemeral=True)
+                return
+
+            # Create a list of all marriages
+            marriage_list = "\n".join([f"{p1} ❤ {p2}" for (_, (p1, p2)) in marriages.items()])
+            await interaction.response.send_message(f"Here are the current marriages:\n\n{marriage_list}", ephemeral=False)
+
+            logging.info("Checked marriages.")
+
+        except Exception as e:
+            logging.error(f"Error in /check_marriages command: {e}")
+            await interaction.response.send_message("An error occurred while checking marriages.", ephemeral=True)
+
     # Send message command (restricted by roles)
     @app_commands.command(name="send_message", description="Send a message to a specific channel.")
     @has_restricted_roles()  # Apply the role restriction
