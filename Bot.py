@@ -3,6 +3,7 @@ import discord
 import random
 import logging
 import aiohttp
+import json
 from discord import app_commands
 from discord.ext import commands
 
@@ -29,8 +30,31 @@ original_bot_avatar = None
 original_bot_status = None
 session = None  # aiohttp session, initialized in on_ready()
 
+# Persistent marriage storage file
+MARRIAGES_FILE = "marriages.json"
+
 # In-memory marriage storage
 marriages = {}
+
+# Load marriages from the file at startup
+def load_marriages():
+    global marriages
+    try:
+        with open(MARRIAGES_FILE, 'r') as f:
+            marriages = json.load(f)
+            logging.info("Marriages loaded from file.")
+    except (FileNotFoundError, json.JSONDecodeError):
+        logging.warning("No existing marriage file found or invalid data. Starting fresh.")
+        marriages = {}
+
+# Save marriages to a file
+def save_marriages():
+    try:
+        with open(MARRIAGES_FILE, 'w') as f:
+            json.dump(marriages, f, indent=4)
+            logging.info("Marriages saved to file.")
+    except Exception as e:
+        logging.error(f"Error saving marriages: {e}")
 
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
@@ -78,13 +102,14 @@ EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
 ALLIE_ID = 987654321  # Replace with Allie's actual ID
 
-# Restrict command access to a specific role
+# Restrict command access to a specific role with improved error message
 def has_restricted_role():
     async def predicate(interaction: discord.Interaction):
         role = discord.utils.get(interaction.user.roles, id=RESTRICTED_ROLE_ID)
         if role:
             return True
-        await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        role_name = discord.utils.get(interaction.guild.roles, id=RESTRICTED_ROLE_ID).name
+        await interaction.response.send_message(f"You need the '{role_name}' role to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
 
@@ -136,32 +161,10 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /ship command: {e}")
             await interaction.followup.send("An error occurred while processing the ship command. Please try again later.", ephemeral=True)
 
-    # Send a message as the bot in a specific channel (restricted by role)
-    @app_commands.command(name="send_bot_message", description="Send a message as the bot in a specific channel.")
-    @has_restricted_role()
-    async def send_bot_message(self, interaction: discord.Interaction, message: str):
-        try:
-            # Channel ID where the message will be sent
-            channel_id = 1292553891581268010
-            # Fetch the channel object
-            channel = bot.get_channel(channel_id)
-
-            if channel:
-                # Send the message as the bot in the specified channel (plain text)
-                await channel.send(message)
-                await interaction.followup.send(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
-
-                logging.info(f"{interaction.user.name} used /send_bot_message to send '{message}' to channel {channel_id}.")
-            else:
-                await interaction.response.send_message(f"Channel {channel_id} not found!", ephemeral=True)
-
-        except Exception as e:
-            logging.error(f"Error in /send_bot_message command: {e}")
-            await interaction.followup.send("An error occurred while sending the bot message.", ephemeral=True)
-
-    # Copy a user's profile (restricted by role)
+    # Copy a user's profile with rate limiting (restricted by role)
     @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture.")
     @has_restricted_role()
+    @app_commands.checks.cooldown(1, 600, key=lambda i: (i.user.id))  # 10 minute cooldown
     async def copy(self, interaction: discord.Interaction, target: discord.Member):
         global original_bot_name, original_bot_avatar, original_bot_status, session
 
@@ -230,21 +233,6 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /stop command: {e}")
             await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
 
-    # Help command to list all available commands
-    @app_commands.command(name="help", description="Show a list of available commands.")
-    async def help_command(self, interaction: discord.Interaction):
-        help_text = """
-        **Available Commands:**
-        `/ship`: Ship two random members together with a compatibility score (accessible by everyone).
-        `/send_bot_message`: Send a message as the bot to a specific channel (restricted to specific role).
-        `/copy`: Copy another user's profile (name, avatar, and status) to the bot (restricted to specific role).
-        `/stop`: Revert the bot's profile to its original (restricted to specific role).
-        `/marry`: Marry two users.
-        `/check_marriages`: Check all current marriages.
-        `/remove_marriage`: Remove a marriage between two users.
-        """
-        await interaction.response.send_message(help_text, ephemeral=True)
-
     # Marry command: Marry two people and store the marriage
     @app_commands.command(name="marry", description="Marry two people.")
     async def marry(self, interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
@@ -256,6 +244,7 @@ class MyBot(commands.Cog):
 
             # Store the marriage
             marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
+            save_marriages()  # Save marriages after adding
 
             # Send a marriage message
             await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
@@ -296,6 +285,8 @@ class MyBot(commands.Cog):
             else:
                 await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!", ephemeral=True)
                 return
+
+            save_marriages()  # Save marriages after removal
 
             # Send a divorce message
             await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
@@ -338,6 +329,9 @@ async def on_ready():
 
         session = aiohttp.ClientSession()
 
+        # Load marriages from file at startup
+        load_marriages()
+
         await bot.change_presence(activity=discord.Game(name="Shipping Members"))
 
         await bot.tree.sync()
@@ -348,7 +342,7 @@ async def on_ready():
 
 # Clean up session when bot closes
 @bot.event
-async def on_close():
+async def on_shutdown():
     global session
     if session:
         await session.close()
