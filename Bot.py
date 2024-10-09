@@ -12,11 +12,6 @@ logging.basicConfig(level=logging.INFO)
 # Retrieve the bot token from Render's environment variables
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
-# Check if DISCORD_TOKEN is present
-if not DISCORD_TOKEN:
-    logging.error("DISCORD_TOKEN not found! Make sure it's set in your environment variables.")
-    exit(1)
-
 # Role ID for restricted commands
 RESTRICTED_ROLE_ID = 1292555408724066364
 
@@ -143,16 +138,14 @@ class MyBot(commands.Cog):
     @has_restricted_role()
     async def send_bot_message(self, interaction: discord.Interaction, message: str):
         try:
+            # Channel ID where the message will be sent
             channel_id = 1292553891581268010
+            # Fetch the channel object
             channel = bot.get_channel(channel_id)
 
             if channel:
-                embed = discord.Embed(
-                    title="Bot Message",
-                    description=message,
-                    color=discord.Color.blue()
-                )
-                await channel.send(embed=embed)
+                # Send the message as the bot in the specified channel (plain text)
+                await channel.send(message)
                 await interaction.response.send_message(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
 
                 logging.info(f"{interaction.user.name} used /send_bot_message to send '{message}' to channel {channel_id}.")
