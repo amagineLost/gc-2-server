@@ -3,7 +3,6 @@ import discord
 import random
 import logging
 import aiohttp
-import requests  # For webhook requests
 from discord import app_commands
 from discord.ext import commands
 
@@ -17,9 +16,6 @@ DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 if not DISCORD_TOKEN:
     logging.error("DISCORD_TOKEN not found! Make sure it's set in your environment variables.")
     exit(1)
-
-# Webhook URL (provided by the user)
-WEBHOOK_URL = "https://discord.com/api/webhooks/1293401067102539920/c29S4Oy6xcXDxWl_nAy-vkWp9RpMUoDfwguM1Gkq7Yoqpg3YL0x5PJmyRa_EnbwN-olM"
 
 # Enable all intents including the privileged ones
 intents = discord.Intents.default()
@@ -139,83 +135,96 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /ship command: {e}")
             await interaction.followup.send("An error occurred while processing the ship command. Please try again later.", ephemeral=True)
 
-    # Register the webhook command
-    @app_commands.command(name="send_webhook", description="Send a message through the webhook.")
-    async def send_webhook(self, interaction: discord.Interaction, message: str):
+    # Send a message as the bot in a specific channel
+    @app_commands.command(name="send_bot_message", description="Send a message as the bot in a specific channel.")
+    async def send_bot_message(self, interaction: discord.Interaction, message: str):
         try:
-            # Define the message payload
-            payload = {
-                "content": message,
-                "username": "Custom Bot",  # Custom username for the message
-                "avatar_url": "https://i.imgur.com/AfFp7pu.png"  # Optional: Custom avatar
-            }
+            # Channel ID where the message will be sent (you specified this)
+            channel_id = 1292553891581268010
 
-            # Send the message to the webhook
-            response = requests.post(WEBHOOK_URL, json=payload)
+            # Fetch the channel object
+            channel = bot.get_channel(channel_id)
 
-            # Check if the request was successful
-            if response.status_code == 204:
-                await interaction.response.send_message(f"Message sent successfully via the webhook!", ephemeral=True)
+            if channel:
+                # Send the message as the bot in the specified channel
+                await channel.send(message)
+                await interaction.response.send_message(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
             else:
-                await interaction.response.send_message(f"Failed to send message via the webhook. Status code: {response.status_code}", ephemeral=True)
+                await interaction.response.send_message(f"Channel {channel_id} not found!", ephemeral=True)
 
         except Exception as e:
-            logging.error(f"Error in /send_webhook command: {e}")
-            await interaction.response.send_message("An error occurred while sending the webhook message.", ephemeral=True)
+            logging.error(f"Error in /send_bot_message command: {e}")
+            await interaction.response.send_message("An error occurred while sending the bot message.", ephemeral=True)
 
-# Event when the bot is ready
+    # Copy a user's profile information
+    @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture")
+    async def copy(self, interaction: discord.Interaction, target: discord.Member):
+        global original_bot_name, original_bot_avatar, original_bot_status, session
+
+        # Store the bot's original details before changing them
+        if original_bot_name is None:
+            original_bot_name = bot.user.name
+        if original_bot_avatar is None:
+            original_bot_avatar = await bot.user.avatar.read() if bot.user.avatar else None
+        if original_bot_status is None:
+            original_bot_status = bot.activity
+
+        try:
+            # Get the target's profile information
+            target_name = target.display_name
+            target_avatar_url = target.avatar.url if target.avatar else None
+            target_status = target.activity.name if target.activity else "No status"
+
+            # Change the bot's name
+            await bot.user.edit(username=target_name)
+
+            # Change the bot's avatar if the user has one
+            if target_avatar_url:
+                async with session.get(target_avatar_url) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        await bot.user.edit(avatar=data)
+
+            # Update the bot's status with the user's activity (if they have one)
+            await bot.change_presence(activity=discord.Game(name=target_status))
+
+            await interaction.response.send_message(f"Copied {target.mention}'s profile!", ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"Error in /copy command: {e}")
+            await interaction.response.send_message(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
+
+    # Stop command to revert back to the original profile
+    @app_commands.command(name="stop", description="Revert the bot back to its original profile")
+    async def stop(self, interaction: discord.Interaction):
+        global original_bot_name, original_bot_avatar, original_bot_status
+
+        try:
+            # Revert the bot's name, avatar, and status
+            if original_bot_name:
+                await bot.user.edit(username=original_bot_name)
+            if original_bot_avatar:
+                await bot.user.edit(avatar=original_bot_avatar)
+            if original_bot_status:
+                await bot.change_presence(activity=original_bot_status)
+
+            await interaction.response.send_message("Reverted back to the original profile!", ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"Error in /stop command: {e}")
+            await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
+
+# Message delete detection
 @bot.event
-async def on_ready():
-    global session
+async def on_message_delete(message):
     try:
-        logging.info(f'Logged in as {bot.user}!')
+        if message.author.bot:
+            return
 
-        # Initialize aiohttp session
-        session = aiohttp.ClientSession()
+        reply_info = ""
+        if message.reference and message.reference.resolved:
+            replied_to = message.reference.resolved
+            reply_info = f"(This was a reply to {replied_to.author.mention})"
 
-        # Sync commands globally (for all guilds)
-        await bot.tree.sync()
-        logging.info("Slash commands globally synced.")
-
-    except Exception as e:
-        logging.error(f"Error during on_ready: {e}")
-
-# Clean up session when bot closes
-@bot.event
-async def on_close():
-    global session
-    if session:
-        await session.close()
-
-# Error handling for command errors
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You do not have permission to use this command.", ephemeral=True)
-    elif isinstance(error, commands.CommandNotFound):
-        await ctx.send("That command does not exist.", ephemeral=True)
-    else:
-        logging.error(f"Unexpected error: {error}")
-        await ctx.send("An unexpected error occurred.", ephemeral=True)
-
-# Add the cog to the bot and force command sync
-async def setup_hook():
-    try:
-        await bot.add_cog(MyBot(bot))
-        logging.info("Successfully added the MyBot cog.")
-
-        # Global sync for all commands instead of per guild
-        await bot.tree.sync()
-        logging.info("Global slash commands synced.")
-
-    except Exception as e:
-        logging.error(f"Error adding cog: {e}")
-
-# Assign the setup_hook directly to the bot object
-bot.setup_hook = setup_hook
-
-# Run the bot using the token from the environment variable
-try:
-    bot.run(DISCORD_TOKEN)
-except Exception as e:
-    logging.error(f"Error starting the bot: {e}")
+        deleted_message_info = (
+            f"🔴 {message.author.mention} just deleted a message:
