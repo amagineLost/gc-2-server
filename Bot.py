@@ -146,7 +146,7 @@ class MyBot(commands.Cog):
             if channel:
                 # Send the message as the bot in the specified channel (plain text)
                 await channel.send(message)
-                await interaction.response.send_message(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
+                await interaction.followup.send(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
 
                 logging.info(f"{interaction.user.name} used /send_bot_message to send '{message}' to channel {channel_id}.")
             else:
@@ -154,7 +154,7 @@ class MyBot(commands.Cog):
 
         except Exception as e:
             logging.error(f"Error in /send_bot_message command: {e}")
-            await interaction.response.send_message("An error occurred while sending the bot message.", ephemeral=True)
+            await interaction.followup.send("An error occurred while sending the bot message.", ephemeral=True)
 
     # Copy a user's profile (restricted by role)
     @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture.")
@@ -170,26 +170,41 @@ class MyBot(commands.Cog):
             original_bot_status = bot.activity
 
         try:
+            await interaction.response.defer()  # Acknowledge the interaction before any long-running tasks
+
             target_name = target.display_name
             target_avatar_url = target.avatar.url if target.avatar else None
             target_status = target.activity.name if target.activity else "No status"
 
-            await bot.user.edit(username=target_name)
+            # Change the bot's name
+            try:
+                await bot.user.edit(username=target_name)
+            except discord.errors.HTTPException as e:
+                logging.error(f"Error changing bot name: {e}")
+                await interaction.followup.send(f"Failed to copy {target.mention}'s name due to rate limits. Please try again later.", ephemeral=True)
+                return
 
+            # Change the bot's avatar if the user has one
             if target_avatar_url:
-                async with session.get(target_avatar_url) as resp:
-                    if resp.status == 200:
-                        data = await resp.read()
-                        await bot.user.edit(avatar=data)
+                try:
+                    async with session.get(target_avatar_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            await bot.user.edit(avatar=data)
+                except discord.errors.HTTPException as e:
+                    logging.error(f"Error changing bot avatar: {e}")
+                    await interaction.followup.send(f"Failed to copy {target.mention}'s avatar due to rate limits. Please try again later.", ephemeral=True)
+                    return
 
+            # Update the bot's status with the user's activity (if they have one)
             await bot.change_presence(activity=discord.Game(name=target_status))
 
-            await interaction.response.send_message(f"Copied {target.mention}'s profile!", ephemeral=True)
-            logging.info(f"{interaction.user.name} used /copy to copy {target.name}'s profile.")
+            # Notify success
+            await interaction.followup.send(f"Copied {target.mention}'s profile successfully!", ephemeral=True)
 
         except Exception as e:
             logging.error(f"Error in /copy command: {e}")
-            await interaction.response.send_message(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
+            await interaction.followup.send(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
 
     # Revert bot's profile (restricted by role)
     @app_commands.command(name="stop", description="Revert the bot back to its original profile.")
@@ -205,12 +220,12 @@ class MyBot(commands.Cog):
             if original_bot_status:
                 await bot.change_presence(activity=original_bot_status)
 
-            await interaction.response.send_message("Reverted back to the original profile!", ephemeral=True)
+            await interaction.followup.send("Reverted back to the original profile!", ephemeral=True)
             logging.info(f"{interaction.user.name} used /stop to revert the bot's profile.")
 
         except Exception as e:
             logging.error(f"Error in /stop command: {e}")
-            await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
+            await interaction.followup.send("Failed to revert back to the original profile.", ephemeral=True)
 
     # Help command to list all available commands
     @app_commands.command(name="help", description="Show a list of available commands.")
