@@ -29,6 +29,9 @@ original_bot_avatar = None
 original_bot_status = None
 session = None  # aiohttp session, initialized in on_ready()
 
+# In-memory marriage storage
+marriages = {}
+
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
     if compatibility_percentage < 25:
@@ -236,8 +239,72 @@ class MyBot(commands.Cog):
         `/send_bot_message`: Send a message as the bot to a specific channel (restricted to specific role).
         `/copy`: Copy another user's profile (name, avatar, and status) to the bot (restricted to specific role).
         `/stop`: Revert the bot's profile to its original (restricted to specific role).
+        `/marry`: Marry two users.
+        `/check_marriages`: Check all current marriages.
+        `/remove_marriage`: Remove a marriage between two users.
         """
         await interaction.response.send_message(help_text, ephemeral=True)
+
+    # Marry command: Marry two people and store the marriage
+    @app_commands.command(name="marry", description="Marry two people.")
+    async def marry(self, interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
+        try:
+            # Ensure they are not already married
+            if (person1.id, person2.id) in marriages or (person2.id, person1.id) in marriages:
+                await interaction.response.send_message(f"{person1.mention} and {person2.mention} are already married!", ephemeral=True)
+                return
+
+            # Store the marriage
+            marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
+
+            # Send a marriage message
+            await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
+
+            logging.info(f"{person1.display_name} and {person2.display_name} got married.")
+
+        except Exception as e:
+            logging.error(f"Error in /marry command: {e}")
+            await interaction.response.send_message("An error occurred while processing the marriage.", ephemeral=True)
+
+    # Check marriages command: List all current marriages
+    @app_commands.command(name="check_marriages", description="Check all current marriages.")
+    async def check_marriages(self, interaction: discord.Interaction):
+        try:
+            if not marriages:
+                await interaction.response.send_message("There are no current marriages.", ephemeral=True)
+                return
+
+            # Create a list of all marriages
+            marriage_list = "\n".join([f"{p1} ❤ {p2}" for (_, (p1, p2)) in marriages.items()])
+            await interaction.response.send_message(f"Here are the current marriages:\n\n{marriage_list}", ephemeral=True)
+
+            logging.info("Checked marriages.")
+
+        except Exception as e:
+            logging.error(f"Error in /check_marriages command: {e}")
+            await interaction.response.send_message("An error occurred while checking marriages.", ephemeral=True)
+
+    # Remove marriage command: Divorce two people and remove the marriage
+    @app_commands.command(name="remove_marriage", description="Remove a marriage.")
+    async def remove_marriage(self, interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
+        try:
+            # Check if the two people are married
+            if (person1.id, person2.id) in marriages:
+                del marriages[(person1.id, person2.id)]
+            elif (person2.id, person1.id) in marriages:
+                del marriages[(person2.id, person1.id)]
+            else:
+                await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!", ephemeral=True)
+                return
+
+            # Send a divorce message
+            await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
+
+            logging.info(f"{person1.display_name} and {person2.display_name} are no longer married.")
+
+        except Exception as e:
+            logging.error(f"Error in /remove_marriage command: {e}")
+            await interaction.response.send_message("An error occurred while removing the marriage.", ephemeral=True)
 
 # Message delete detection
 @bot.event
@@ -311,6 +378,7 @@ async def setup_hook():
 
 bot.setup_hook = setup_hook
 
+# Run the bot using the token from the environment variable
 try:
     bot.run(DISCORD_TOKEN)
 except Exception as e:
