@@ -17,6 +17,9 @@ if not DISCORD_TOKEN:
     logging.error("DISCORD_TOKEN not found! Make sure it's set in your environment variables.")
     exit(1)
 
+# Role ID for restricted commands
+RESTRICTED_ROLE_ID = 1292555408724066364
+
 # Enable all intents including the privileged ones
 intents = discord.Intents.default()
 intents.members = True            # Enable access to server members
@@ -34,121 +37,125 @@ session = None  # aiohttp session, initialized in on_ready()
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
     if compatibility_percentage < 25:
-        messages = [
+        return random.choice([
             "These two should never be matched! 😬",
             "This is a disaster waiting to happen! 😱",
             "No chance! 😅",
             "Run away before it's too late! 🏃‍♂️💨"
-        ]
+        ])
     elif compatibility_percentage < 50:
-        messages = [
+        return random.choice([
             "It’s not looking good for these two... 😅",
             "Maybe, but probably not! 😕",
             "They might get along… in an alternate universe. 🌍",
             "This ship is leaking water. 🛳️💧"
-        ]
+        ])
     elif compatibility_percentage < 75:
-        messages = [
+        return random.choice([
             "There might be something here! 😉",
             "They could make it work with some effort! 🛠️",
             "A promising pair, but it needs some work! 😄",
             "They are on the right path! 🌟"
-        ]
+        ])
     elif compatibility_percentage < 90:
-        messages = [
+        return random.choice([
             "This pair is looking quite promising! 😍",
             "There's definite chemistry here! 💥",
             "These two are getting close to perfect! ✨",
             "They are almost a perfect match! ❤️"
-        ]
+        ])
     else:
-        messages = [
+        return random.choice([
             "They are a match made in heaven! 💖",
             "This is true love! 💘",
             "It doesn’t get better than this! 🌟",
             "This is the ultimate ship! 🚢💞"
-        ]
-    
-    return random.choice(messages)
+        ])
 
 # Excluded users (by ID and username)
 EXCLUDED_USER_IDS = [743263377773822042]
 EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 
-# Special user IDs or display names for guaranteed 100% compatibility
+# Special user IDs for guaranteed 100% compatibility
 ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
 ALLIE_ID = 987654321  # Replace with Allie's actual ID
+
+# Restrict command access to a specific role
+def has_restricted_role():
+    async def predicate(interaction: discord.Interaction):
+        role = discord.utils.get(interaction.user.roles, id=RESTRICTED_ROLE_ID)
+        if role:
+            return True
+        await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+        return False
+    return app_commands.check(predicate)
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Register the ship command
+    # Register the ship command (accessible by anyone)
     @app_commands.command(name="ship", description="Ship two random members together with a love score!")
+    @app_commands.checks.cooldown(1, 60, key=lambda i: (i.user.id))  # 1 minute cooldown
     async def ship(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()
 
-            # Get the list of all members in the server excluding the specific users
             eligible_members = [
                 member for member in interaction.guild.members 
-                if not member.bot and 
-                member.id not in EXCLUDED_USER_IDS and 
-                member.display_name not in EXCLUDED_USER_NAMES
+                if not member.bot and member.id not in EXCLUDED_USER_IDS and member.display_name not in EXCLUDED_USER_NAMES
             ]
 
-            # Add Zeeke and Allie multiple times to increase their chances
             zeeke = discord.utils.get(interaction.guild.members, id=ZEKE_ID)
             allie = discord.utils.get(interaction.guild.members, id=ALLIE_ID)
 
             if zeeke and allie:
                 eligible_members.extend([zeeke, allie] * 10)  # Add them 10 times to increase their chance
 
-            # Ensure we have at least two members to ship
             if len(eligible_members) < 2:
                 await interaction.followup.send("Not enough eligible members to ship!", ephemeral=True)
                 return
 
-            # Shuffle the list once and select two random members
             random.shuffle(eligible_members)
             person1, person2 = eligible_members[:2]
 
-            # Check if Zeeke and Allie are the chosen members
             if ((person1.id == ZEKE_ID and person2.id == ALLIE_ID) or
                 (person1.id == ALLIE_ID and person2.id == ZEKE_ID)):
-                # Always give them 100% compatibility
                 compatibility_percentage = 100
                 custom_message = "These two are a match made in heaven! 💖"
             else:
-                # Generate a random compatibility percentage
                 compatibility_percentage = random.randint(0, 100)
-                # Get the custom message based on the compatibility percentage
                 custom_message = get_custom_message(compatibility_percentage)
 
-            # Send the ship result with the compatibility percentage and custom message
             await interaction.followup.send(
                 f"{person1.mention} and {person2.mention} have a {compatibility_percentage}% compatibility! 💘\n{custom_message}"
             )
+
+            logging.info(f"{interaction.user.name} used /ship to match {person1.name} and {person2.name}.")
 
         except Exception as e:
             logging.error(f"Error in /ship command: {e}")
             await interaction.followup.send("An error occurred while processing the ship command. Please try again later.", ephemeral=True)
 
-    # Send a message as the bot in a specific channel
+    # Send a message as the bot in a specific channel (restricted by role)
     @app_commands.command(name="send_bot_message", description="Send a message as the bot in a specific channel.")
+    @has_restricted_role()
     async def send_bot_message(self, interaction: discord.Interaction, message: str):
         try:
-            # Channel ID where the message will be sent (you specified this)
             channel_id = 1292553891581268010
-
-            # Fetch the channel object
             channel = bot.get_channel(channel_id)
 
             if channel:
-                # Send the message as the bot in the specified channel
-                await channel.send(message)
+                embed = discord.Embed(
+                    title="Bot Message",
+                    description=message,
+                    color=discord.Color.blue()
+                )
+                await channel.send(embed=embed)
                 await interaction.response.send_message(f"Message sent successfully to channel {channel_id}!", ephemeral=True)
+
+                logging.info(f"{interaction.user.name} used /send_bot_message to send '{message}' to channel {channel_id}.")
             else:
                 await interaction.response.send_message(f"Channel {channel_id} not found!", ephemeral=True)
 
@@ -156,12 +163,12 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /send_bot_message command: {e}")
             await interaction.response.send_message("An error occurred while sending the bot message.", ephemeral=True)
 
-    # Copy a user's profile information
-    @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture")
+    # Copy a user's profile (restricted by role)
+    @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture.")
+    @has_restricted_role()
     async def copy(self, interaction: discord.Interaction, target: discord.Member):
         global original_bot_name, original_bot_avatar, original_bot_status, session
 
-        # Store the bot's original details before changing them
         if original_bot_name is None:
             original_bot_name = bot.user.name
         if original_bot_avatar is None:
@@ -170,37 +177,34 @@ class MyBot(commands.Cog):
             original_bot_status = bot.activity
 
         try:
-            # Get the target's profile information
             target_name = target.display_name
             target_avatar_url = target.avatar.url if target.avatar else None
             target_status = target.activity.name if target.activity else "No status"
 
-            # Change the bot's name
             await bot.user.edit(username=target_name)
 
-            # Change the bot's avatar if the user has one
             if target_avatar_url:
                 async with session.get(target_avatar_url) as resp:
                     if resp.status == 200:
                         data = await resp.read()
                         await bot.user.edit(avatar=data)
 
-            # Update the bot's status with the user's activity (if they have one)
             await bot.change_presence(activity=discord.Game(name=target_status))
 
             await interaction.response.send_message(f"Copied {target.mention}'s profile!", ephemeral=True)
+            logging.info(f"{interaction.user.name} used /copy to copy {target.name}'s profile.")
 
         except Exception as e:
             logging.error(f"Error in /copy command: {e}")
             await interaction.response.send_message(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
 
-    # Stop command to revert back to the original profile
-    @app_commands.command(name="stop", description="Revert the bot back to its original profile")
+    # Revert bot's profile (restricted by role)
+    @app_commands.command(name="stop", description="Revert the bot back to its original profile.")
+    @has_restricted_role()
     async def stop(self, interaction: discord.Interaction):
         global original_bot_name, original_bot_avatar, original_bot_status
 
         try:
-            # Revert the bot's name, avatar, and status
             if original_bot_name:
                 await bot.user.edit(username=original_bot_name)
             if original_bot_avatar:
@@ -209,10 +213,23 @@ class MyBot(commands.Cog):
                 await bot.change_presence(activity=original_bot_status)
 
             await interaction.response.send_message("Reverted back to the original profile!", ephemeral=True)
+            logging.info(f"{interaction.user.name} used /stop to revert the bot's profile.")
 
         except Exception as e:
             logging.error(f"Error in /stop command: {e}")
             await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
+
+    # Help command to list all available commands
+    @app_commands.command(name="help", description="Show a list of available commands.")
+    async def help_command(self, interaction: discord.Interaction):
+        help_text = """
+        **Available Commands:**
+        `/ship`: Ship two random members together with a compatibility score (accessible by everyone).
+        `/send_bot_message`: Send a message as the bot to a specific channel (restricted to specific role).
+        `/copy`: Copy another user's profile (name, avatar, and status) to the bot (restricted to specific role).
+        `/stop`: Revert the bot's profile to its original (restricted to specific role).
+        """
+        await interaction.response.send_message(help_text, ephemeral=True)
 
 # Message delete detection
 @bot.event
@@ -227,4 +244,66 @@ async def on_message_delete(message):
             reply_info = f"(This was a reply to {replied_to.author.mention})"
 
         deleted_message_info = (
-            f"🔴 {message.author.mention} just deleted a message:
+            f"🔴 {message.author.mention} just deleted a message: '{message.content}' {reply_info} "
+            f"in {message.channel.mention}."
+        )
+
+        await message.channel.send(deleted_message_info)
+        logging.info(f"{message.author.name} deleted a message in {message.channel.name}: '{message.content}'")
+
+    except Exception as e:
+        logging.error(f"Error in on_message_delete event: {e}")
+
+# Event when the bot is ready
+@bot.event
+async def on_ready():
+    global session
+    try:
+        logging.info(f'Logged in as {bot.user}!')
+
+        session = aiohttp.ClientSession()
+
+        await bot.change_presence(activity=discord.Game(name="Shipping Members"))
+
+        await bot.tree.sync()
+        logging.info("Slash commands globally synced.")
+
+    except Exception as e:
+        logging.error(f"Error during on_ready: {e}")
+
+# Clean up session when bot closes
+@bot.event
+async def on_close():
+    global session
+    if session:
+        await session.close()
+
+# Error handling for command errors
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You do not have permission to use this command.", ephemeral=True)
+    elif isinstance(error, commands.CommandNotFound):
+        await ctx.send("That command does not exist.", ephemeral=True)
+    else:
+        logging.error(f"Unexpected error: {error}")
+        await ctx.send("An unexpected error occurred.", ephemeral=True)
+
+# Add the cog to the bot and force command sync
+async def setup_hook():
+    try:
+        await bot.add_cog(MyBot(bot))
+        logging.info("Successfully added the MyBot cog.")
+
+        await bot.tree.sync()
+        logging.info("Global slash commands synced.")
+
+    except Exception as e:
+        logging.error(f"Error adding cog: {e}")
+
+bot.setup_hook = setup_hook
+
+try:
+    bot.run(DISCORD_TOKEN)
+except Exception as e:
+    logging.error(f"Error starting the bot: {e}")
