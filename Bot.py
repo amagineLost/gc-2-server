@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.INFO)
 # Retrieve the bot token from Render's environment variables
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
-# Role ID for restricted commands
-RESTRICTED_ROLE_ID = 1292555408724066364
+# Role IDs for restricted commands
+ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 
 # Enable all intents including the privileged ones
 intents = discord.Intents.default()
@@ -102,14 +102,17 @@ EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
 ALLIE_ID = 987654321  # Replace with Allie's actual ID
 
-# Restrict command access to a specific role with improved error message
-def has_restricted_role():
+# Restrict command access to specific roles
+def has_restricted_roles():
     async def predicate(interaction: discord.Interaction):
-        role = discord.utils.get(interaction.user.roles, id=RESTRICTED_ROLE_ID)
-        if role:
+        allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
+        user_roles = [role.id for role in interaction.user.roles]
+        
+        if any(role_id in user_roles for role_id in allowed_roles):
             return True
-        role_name = discord.utils.get(interaction.guild.roles, id=RESTRICTED_ROLE_ID).name
-        await interaction.response.send_message(f"You need the '{role_name}' role to use this command.", ephemeral=True)
+        
+        # Send an error message if the user doesn't have the required role
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
 
@@ -161,9 +164,9 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /ship command: {e}")
             await interaction.followup.send("An error occurred while processing the ship command. Please try again later.", ephemeral=True)
 
-    # Copy a user's profile with rate limiting (restricted by role)
+    # Copy a user's profile with rate limiting (restricted by roles)
     @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture.")
-    @has_restricted_role()
+    @has_restricted_roles()  # Apply the role restriction
     @app_commands.checks.cooldown(1, 600, key=lambda i: (i.user.id))  # 10 minute cooldown
     async def copy(self, interaction: discord.Interaction, target: discord.Member):
         global original_bot_name, original_bot_avatar, original_bot_status, session
@@ -212,9 +215,9 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /copy command: {e}")
             await interaction.followup.send(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
 
-    # Revert bot's profile (restricted by role)
+    # Revert bot's profile (restricted by roles)
     @app_commands.command(name="stop", description="Revert the bot back to its original profile.")
-    @has_restricted_role()
+    @has_restricted_roles()  # Apply the role restriction
     async def stop(self, interaction: discord.Interaction):
         global original_bot_name, original_bot_avatar, original_bot_status
 
@@ -233,8 +236,9 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /stop command: {e}")
             await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
 
-    # Marry command: Marry two people and store the marriage
+    # Marry command (restricted by roles)
     @app_commands.command(name="marry", description="Marry two people.")
+    @has_restricted_roles()  # Apply the role restriction
     async def marry(self, interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
         try:
             # Ensure they are not already married
@@ -255,26 +259,9 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /marry command: {e}")
             await interaction.response.send_message("An error occurred while processing the marriage.", ephemeral=True)
 
-    # Check marriages command: List all current marriages
-    @app_commands.command(name="check_marriages", description="Check all current marriages.")
-    async def check_marriages(self, interaction: discord.Interaction):
-        try:
-            if not marriages:
-                await interaction.response.send_message("There are no current marriages.", ephemeral=True)
-                return
-
-            # Create a list of all marriages
-            marriage_list = "\n".join([f"{p1} ❤ {p2}" for (_, (p1, p2)) in marriages.items()])
-            await interaction.response.send_message(f"Here are the current marriages:\n\n{marriage_list}", ephemeral=True)
-
-            logging.info("Checked marriages.")
-
-        except Exception as e:
-            logging.error(f"Error in /check_marriages command: {e}")
-            await interaction.response.send_message("An error occurred while checking marriages.", ephemeral=True)
-
-    # Remove marriage command: Divorce two people and remove the marriage
+    # Remove marriage command (restricted by roles)
     @app_commands.command(name="remove_marriage", description="Remove a marriage.")
+    @has_restricted_roles()  # Apply the role restriction
     async def remove_marriage(self, interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
         try:
             # Check if the two people are married
@@ -297,28 +284,18 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /remove_marriage command: {e}")
             await interaction.response.send_message("An error occurred while removing the marriage.", ephemeral=True)
 
-# Message delete detection
-@bot.event
-async def on_message_delete(message):
-    try:
-        if message.author.bot:
-            return
+    # Send message command (restricted by roles)
+    @app_commands.command(name="send_message", description="Send a message to a specific channel.")
+    @has_restricted_roles()  # Apply the role restriction
+    async def send_message(self, interaction: discord.Interaction, channel: discord.TextChannel, message: str):
+        try:
+            await channel.send(message)
+            await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
+            logging.info(f"{interaction.user.name} sent a message to {channel.name}: {message}")
 
-        reply_info = ""
-        if message.reference and message.reference.resolved:
-            replied_to = message.reference.resolved
-            reply_info = f"(This was a reply to {replied_to.author.mention})"
-
-        deleted_message_info = (
-            f"🔴 {message.author.mention} just deleted a message: '{message.content}' {reply_info} "
-            f"in {message.channel.mention}."
-        )
-
-        await message.channel.send(deleted_message_info)
-        logging.info(f"{message.author.name} deleted a message in {message.channel.name}: '{message.content}'")
-
-    except Exception as e:
-        logging.error(f"Error in on_message_delete event: {e}")
+        except Exception as e:
+            logging.error(f"Error in /send_message command: {e}")
+            await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
 # Event when the bot is ready
 @bot.event
