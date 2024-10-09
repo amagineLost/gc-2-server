@@ -153,7 +153,8 @@ class MyBot(commands.Cog):
         if original_bot_name is None:
             original_bot_name = bot.user.name
         if original_bot_avatar is None:
-            original_bot_avatar = await bot.user.avatar_url.read()
+            # Fix: Fetch the bot's avatar URL using the new method
+            original_bot_avatar = await bot.user.avatar.read() if bot.user.avatar else None
         if original_bot_status is None:
             original_bot_status = bot.activity
 
