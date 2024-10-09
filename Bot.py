@@ -220,12 +220,12 @@ class MyBot(commands.Cog):
             if original_bot_status:
                 await bot.change_presence(activity=original_bot_status)
 
-            await interaction.followup.send("Reverted back to the original profile!", ephemeral=True)
+            await interaction.response.send_message("Reverted back to the original profile!", ephemeral=True)
             logging.info(f"{interaction.user.name} used /stop to revert the bot's profile.")
 
         except Exception as e:
             logging.error(f"Error in /stop command: {e}")
-            await interaction.followup.send("Failed to revert back to the original profile.", ephemeral=True)
+            await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
 
     # Help command to list all available commands
     @app_commands.command(name="help", description="Show a list of available commands.")
