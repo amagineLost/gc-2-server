@@ -29,9 +29,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 original_bot_name = None
 original_bot_avatar = None
 original_bot_status = None
-
-# Create an aiohttp session to use for fetching images
-session = aiohttp.ClientSession()
+session = None  # aiohttp session, initialized in on_ready()
 
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
@@ -151,13 +149,12 @@ class MyBot(commands.Cog):
     # Copy a user's profile information
     @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture")
     async def copy(self, interaction: discord.Interaction, target: discord.Member):
-        global original_bot_name, original_bot_avatar, original_bot_status
+        global original_bot_name, original_bot_avatar, original_bot_status, session
 
         # Store the bot's original details before changing them
         if original_bot_name is None:
             original_bot_name = bot.user.name
         if original_bot_avatar is None:
-            # Fix: Fetch the bot's avatar URL using the new method
             original_bot_avatar = await bot.user.avatar.read() if bot.user.avatar else None
         if original_bot_status is None:
             original_bot_status = bot.activity
@@ -232,8 +229,12 @@ async def on_message_delete(message):
 # Event when the bot is ready
 @bot.event
 async def on_ready():
+    global session
     try:
         logging.info(f'Logged in as {bot.user}!')
+
+        # Initialize aiohttp session
+        session = aiohttp.ClientSession()
 
         # Sync commands globally (for all guilds)
         await bot.tree.sync()
@@ -241,6 +242,13 @@ async def on_ready():
 
     except Exception as e:
         logging.error(f"Error during on_ready: {e}")
+
+# Clean up session when bot closes
+@bot.event
+async def on_close():
+    global session
+    if session:
+        await session.close()
 
 # Error handling for command errors
 @bot.event
