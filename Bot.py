@@ -24,6 +24,11 @@ intents.message_content = True    # Enable access to message content
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Store the bot's original information to revert later
+original_bot_name = None
+original_bot_avatar = None
+original_bot_status = None
+
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
     if compatibility_percentage < 25:
@@ -133,9 +138,69 @@ class MyBot(commands.Cog):
     async def help_command(self, interaction: discord.Interaction):
         commands_list = (
             "**/ship**: Ship two random members together with a love score!\n"
+            "**/copy**: Copy another user's profile (name, profile picture).\n"
+            "**/stop**: Revert the bot to its original profile.\n"
             "**/help**: Show this help message."
         )
         await interaction.response.send_message(commands_list, ephemeral=True)
+
+    # Copy a user's profile information
+    @app_commands.command(name="copy", description="Copy another user's profile including name and profile picture")
+    async def copy(self, interaction: discord.Interaction, target: discord.Member):
+        global original_bot_name, original_bot_avatar, original_bot_status
+
+        # Store the bot's original details before changing them
+        if original_bot_name is None:
+            original_bot_name = bot.user.name
+        if original_bot_avatar is None:
+            original_bot_avatar = await bot.user.avatar_url.read()
+        if original_bot_status is None:
+            original_bot_status = bot.activity
+
+        try:
+            # Get the target's profile information
+            target_name = target.display_name
+            target_avatar_url = target.avatar.url if target.avatar else None
+            target_status = target.activity.name if target.activity else "No status"
+
+            # Change the bot's name
+            await bot.user.edit(username=target_name)
+
+            # Change the bot's avatar if the user has one
+            if target_avatar_url:
+                async with bot.session.get(target_avatar_url) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        await bot.user.edit(avatar=data)
+
+            # Update the bot's status with the user's activity (if they have one)
+            await bot.change_presence(activity=discord.Game(name=target_status))
+
+            await interaction.response.send_message(f"Copied {target.mention}'s profile!", ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"Error in /copy command: {e}")
+            await interaction.response.send_message(f"Failed to copy {target.mention}'s profile.", ephemeral=True)
+
+    # Stop command to revert back to the original profile
+    @app_commands.command(name="stop", description="Revert the bot back to its original profile")
+    async def stop(self, interaction: discord.Interaction):
+        global original_bot_name, original_bot_avatar, original_bot_status
+
+        try:
+            # Revert the bot's name, avatar, and status
+            if original_bot_name:
+                await bot.user.edit(username=original_bot_name)
+            if original_bot_avatar:
+                await bot.user.edit(avatar=original_bot_avatar)
+            if original_bot_status:
+                await bot.change_presence(activity=original_bot_status)
+
+            await interaction.response.send_message("Reverted back to the original profile!", ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"Error in /stop command: {e}")
+            await interaction.response.send_message("Failed to revert back to the original profile.", ephemeral=True)
 
 # Message delete detection
 @bot.event
