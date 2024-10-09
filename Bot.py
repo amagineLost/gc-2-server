@@ -2,6 +2,7 @@ import os
 import discord
 import random
 import logging
+import aiohttp
 from discord import app_commands
 from discord.ext import commands
 
@@ -28,6 +29,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 original_bot_name = None
 original_bot_avatar = None
 original_bot_status = None
+
+# Create an aiohttp session to use for fetching images
+session = aiohttp.ClientSession()
 
 # Custom messages for different compatibility percentage ranges
 def get_custom_message(compatibility_percentage):
@@ -169,7 +173,7 @@ class MyBot(commands.Cog):
 
             # Change the bot's avatar if the user has one
             if target_avatar_url:
-                async with bot.session.get(target_avatar_url) as resp:
+                async with session.get(target_avatar_url) as resp:
                     if resp.status == 200:
                         data = await resp.read()
                         await bot.user.edit(avatar=data)
