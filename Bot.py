@@ -4,8 +4,10 @@ import random
 import logging
 import aiohttp
 import json
+import yt_dlp
 from discord import app_commands
 from discord.ext import commands
+from discord import FFmpegPCMAudio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +22,7 @@ ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 intents = discord.Intents.default()
 intents.members = True            # Enable access to server members
 intents.message_content = True    # Enable access to message content
+intents.voice_states = True       # Enable access to voice states
 
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -115,6 +118,49 @@ def has_restricted_roles():
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
+
+# Play a song from a URL (YouTube or Spotify link)
+async def play_song(interaction, url):
+    # Join the user's voice channel if not already in one
+    if not interaction.user.voice:
+        await interaction.response.send_message("You need to be in a voice channel to play music!", ephemeral=True)
+        return
+    
+    voice_channel = interaction.user.voice.channel
+    if interaction.guild.voice_client is None:
+        voice_client = await voice_channel.connect()
+    else:
+        voice_client = interaction.guild.voice_client
+
+    # Use yt-dlp to get audio stream URL from YouTube link
+    try:
+        with yt_dlp.YoutubeDL({'format': 'bestaudio'}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            audio_url = info['url']
+            title = info.get('title', 'Unknown Song')
+        
+        # Play the audio
+        source = FFmpegPCMAudio(audio_url)
+        voice_client.play(source, after=lambda e: logging.info(f'Finished playing {title}.'))
+        
+        await interaction.response.send_message(f"Now playing: {title}", ephemeral=False)
+        logging.info(f"Playing {title} from {url} in {voice_channel.name}")
+        
+    except Exception as e:
+        logging.error(f"Error playing song from {url}: {e}")
+        await interaction.response.send_message("Failed to play the song. Make sure the URL is valid.", ephemeral=True)
+
+# Stop playing and disconnect from the voice channel
+async def stop_play(interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client is not None and voice_client.is_connected():
+        if voice_client.is_playing():
+            voice_client.stop()
+        await voice_client.disconnect()
+        await interaction.response.send_message("Stopped playing and left the voice channel.", ephemeral=False)
+        logging.info(f"Bot left the voice channel: {voice_client.channel.name}")
+    else:
+        await interaction.response.send_message("The bot is not in a voice channel.", ephemeral=True)
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
@@ -314,6 +360,16 @@ class MyBot(commands.Cog):
         except Exception as e:
             logging.error(f"Error in /send_message command: {e}")
             await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
+
+    # Play command for playing Spotify/YouTube songs
+    @app_commands.command(name="play", description="Play a song from a Spotify or YouTube link.")
+    async def play(self, interaction: discord.Interaction, url: str):
+        await play_song(interaction, url)
+
+    # Stop play command to stop the music and leave the voice channel
+    @app_commands.command(name="stop_play", description="Stop the music and make the bot leave the voice channel.")
+    async def stop_play_cmd(self, interaction: discord.Interaction):
+        await stop_play(interaction)
 
 # Message delete detection
 @bot.event
