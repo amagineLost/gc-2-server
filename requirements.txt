@@ -4,3 +4,4 @@ aiohttp
 requests
 discord.py[voice]
 yt-dlp
+youtube_dl
