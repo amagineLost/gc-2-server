@@ -4,11 +4,8 @@ import random
 import logging
 import aiohttp
 import json
-import yt_dlp
-import asyncio
 from discord import app_commands
 from discord.ext import commands
-from discord import FFmpegPCMAudio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -23,10 +20,9 @@ ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 intents = discord.Intents.default()
 intents.members = True            # Enable access to server members
 intents.message_content = True    # Enable access to message content
-intents.voice_states = True       # Enable access to voice states
 
 # Create a bot instance with the defined intents
-bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Store the bot's original information to revert later
 original_bot_name = None
@@ -60,6 +56,44 @@ def save_marriages():
     except Exception as e:
         logging.error(f"Error saving marriages: {e}")
 
+# Custom messages for different compatibility percentage ranges
+def get_custom_message(compatibility_percentage):
+    if compatibility_percentage < 25:
+        return random.choice([
+            "These two should never be matched! 😬",
+            "This is a disaster waiting to happen! 😱",
+            "No chance! 😅",
+            "Run away before it's too late! 🏃‍♂️💨"
+        ])
+    elif compatibility_percentage < 50:
+        return random.choice([
+            "It’s not looking good for these two... 😅",
+            "Maybe, but probably not! 😕",
+            "They might get along… in an alternate universe. 🌍",
+            "This ship is leaking water. 🛳️💧"
+        ])
+    elif compatibility_percentage < 75:
+        return random.choice([
+            "There might be something here! 😉",
+            "They could make it work with some effort! 🛠️",
+            "A promising pair, but it needs some work! 😄",
+            "They are on the right path! 🌟"
+        ])
+    elif compatibility_percentage < 90:
+        return random.choice([
+            "This pair is looking quite promising! 😍",
+            "There's definite chemistry here! 💥",
+            "These two are getting close to perfect! ✨",
+            "They are almost a perfect match! ❤️"
+        ])
+    else:
+        return random.choice([
+            "They are a match made in heaven! 💖",
+            "This is true love! 💘",
+            "It doesn’t get better than this! 🌟",
+            "This is the ultimate ship! 🚢💞"
+        ])
+
 # Excluded users (by ID and username)
 EXCLUDED_USER_IDS = [743263377773822042]
 EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
@@ -81,73 +115,6 @@ def has_restricted_roles():
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
-
-# Play a song from a URL (YouTube or Spotify link)
-async def play_song(interaction, url):
-    # Join the user's voice channel if not already in one
-    if not interaction.user.voice:
-        await interaction.response.send_message("You need to be in a voice channel to play music!", ephemeral=True)
-        return
-
-    voice_channel = interaction.user.voice.channel
-    if interaction.guild.voice_client is None:
-        voice_client = await voice_channel.connect()
-    else:
-        voice_client = interaction.guild.voice_client
-
-    # Defer the interaction to avoid timeouts
-    await interaction.response.defer()
-
-    # Use yt-dlp to get audio stream URL from YouTube link, skipping sign-in-required videos
-    try:
-        ydl_opts = {
-            'format': 'bestaudio',
-            'noplaylist': True,
-            'ignoreerrors': True,  # Skip videos that raise errors
-            'extract_flat': True,  # Avoid downloading video details that require login
-            'age_limit': 0,  # Do not allow age-restricted content
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if not info:
-                raise Exception("Could not extract video information.")
-            audio_url = info.get('url', None)
-            title = info.get('title', 'Unknown Song')
-
-        if not audio_url:
-            raise Exception("No playable audio found.")
-
-        # Play the audio
-        source = FFmpegPCMAudio(audio_url)
-        voice_client.play(source, after=lambda e: logging.info(f'Finished playing {title}.'))
-
-        await interaction.followup.send(f"Now playing: {title}", ephemeral=False)
-        logging.info(f"Playing {title} from {url} in {voice_channel.name}")
-
-    except yt_dlp.utils.ExtractorError as e:
-        if 'Sign in to confirm you’re not a bot' in str(e):
-            logging.error(f"Error playing song from {url}: Age-restricted or login required")
-            await interaction.followup.send("The video is age-restricted or requires a login. Please use another link.", ephemeral=True)
-        else:
-            logging.error(f"Error playing song from {url}: {e}")
-            await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
-
-    except Exception as e:
-        logging.error(f"Error playing song from {url}: {e}")
-        await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
-
-# Stop playing and disconnect from the voice channel
-async def stop_play(interaction):
-    voice_client = interaction.guild.voice_client
-    if voice_client is not None and voice_client.is_connected():
-        if voice_client.is_playing():
-            voice_client.stop()
-        await voice_client.disconnect()
-        await interaction.response.send_message("Stopped playing and left the voice channel.", ephemeral=False)
-        logging.info(f"Bot left the voice channel: {voice_client.channel.name}")
-    else:
-        await interaction.response.send_message("The bot is not in a voice channel.", ephemeral=True)
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
@@ -348,16 +315,6 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /send_message command: {e}")
             await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
-    # Play command for playing Spotify/YouTube songs
-    @app_commands.command(name="play", description="Play a song from a Spotify or YouTube link.")
-    async def play(self, interaction: discord.Interaction, url: str):
-        await play_song(interaction, url)
-
-    # Stop play command to stop the music and leave the voice channel
-    @app_commands.command(name="stop_play", description="Stop the music and make the bot leave the voice channel.")
-    async def stop_play_cmd(self, interaction: discord.Interaction):
-        await stop_play(interaction)
-
 # Message delete detection
 @bot.event
 async def on_message_delete(message):
@@ -380,15 +337,6 @@ async def on_message_delete(message):
 
     except Exception as e:
         logging.error(f"Error in on_message_delete event: {e}")
-
-# Handle bot reconnection
-@bot.event
-async def on_disconnect():
-    logging.warning("Bot disconnected. Attempting to reconnect...")
-
-@bot.event
-async def on_resumed():
-    logging.info("Bot successfully resumed the session.")
 
 # Event when the bot is ready
 @bot.event
