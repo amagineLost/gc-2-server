@@ -2,3 +2,5 @@ discord.py
 pynacl
 aiohttp
 requests
+discord.py[voice]
+yt-dlp
