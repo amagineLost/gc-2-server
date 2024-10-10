@@ -125,30 +125,44 @@ async def play_song(interaction, url):
     if not interaction.user.voice:
         await interaction.response.send_message("You need to be in a voice channel to play music!", ephemeral=True)
         return
-    
+
     voice_channel = interaction.user.voice.channel
     if interaction.guild.voice_client is None:
         voice_client = await voice_channel.connect()
     else:
         voice_client = interaction.guild.voice_client
 
-    # Use yt-dlp to get audio stream URL from YouTube link
+    # Defer the interaction to avoid timeouts
+    await interaction.response.defer()
+
+    # Use yt-dlp to get audio stream URL from YouTube link, skipping sign-in-required videos
     try:
-        with yt_dlp.YoutubeDL({'format': 'bestaudio'}) as ydl:
+        ydl_opts = {
+            'format': 'bestaudio',
+            'noplaylist': True,
+            'ignoreerrors': True  # Skip videos that raise errors
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            audio_url = info['url']
+            if not info:
+                raise Exception("Could not extract video information.")
+            audio_url = info.get('url', None)
             title = info.get('title', 'Unknown Song')
-        
+
+        if not audio_url:
+            raise Exception("No playable audio found.")
+
         # Play the audio
         source = FFmpegPCMAudio(audio_url)
         voice_client.play(source, after=lambda e: logging.info(f'Finished playing {title}.'))
-        
-        await interaction.response.send_message(f"Now playing: {title}", ephemeral=False)
+
+        await interaction.followup.send(f"Now playing: {title}", ephemeral=False)
         logging.info(f"Playing {title} from {url} in {voice_channel.name}")
-        
+
     except Exception as e:
         logging.error(f"Error playing song from {url}: {e}")
-        await interaction.response.send_message("Failed to play the song. Make sure the URL is valid.", ephemeral=True)
+        await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
 
 # Stop playing and disconnect from the voice channel
 async def stop_play(interaction):
