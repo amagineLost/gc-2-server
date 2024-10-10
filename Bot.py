@@ -5,6 +5,7 @@ import logging
 import aiohttp
 import json
 import yt_dlp
+import asyncio
 from discord import app_commands
 from discord.ext import commands
 from discord import FFmpegPCMAudio
@@ -25,7 +26,7 @@ intents.message_content = True    # Enable access to message content
 intents.voice_states = True       # Enable access to voice states
 
 # Create a bot instance with the defined intents
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 # Store the bot's original information to revert later
 original_bot_name = None
@@ -58,44 +59,6 @@ def save_marriages():
             logging.info("Marriages saved to file.")
     except Exception as e:
         logging.error(f"Error saving marriages: {e}")
-
-# Custom messages for different compatibility percentage ranges
-def get_custom_message(compatibility_percentage):
-    if compatibility_percentage < 25:
-        return random.choice([
-            "These two should never be matched! 😬",
-            "This is a disaster waiting to happen! 😱",
-            "No chance! 😅",
-            "Run away before it's too late! 🏃‍♂️💨"
-        ])
-    elif compatibility_percentage < 50:
-        return random.choice([
-            "It’s not looking good for these two... 😅",
-            "Maybe, but probably not! 😕",
-            "They might get along… in an alternate universe. 🌍",
-            "This ship is leaking water. 🛳️💧"
-        ])
-    elif compatibility_percentage < 75:
-        return random.choice([
-            "There might be something here! 😉",
-            "They could make it work with some effort! 🛠️",
-            "A promising pair, but it needs some work! 😄",
-            "They are on the right path! 🌟"
-        ])
-    elif compatibility_percentage < 90:
-        return random.choice([
-            "This pair is looking quite promising! 😍",
-            "There's definite chemistry here! 💥",
-            "These two are getting close to perfect! ✨",
-            "They are almost a perfect match! ❤️"
-        ])
-    else:
-        return random.choice([
-            "They are a match made in heaven! 💖",
-            "This is true love! 💘",
-            "It doesn’t get better than this! 🌟",
-            "This is the ultimate ship! 🚢💞"
-        ])
 
 # Excluded users (by ID and username)
 EXCLUDED_USER_IDS = [743263377773822042]
@@ -164,6 +127,13 @@ async def play_song(interaction, url):
         logging.error(f"Error playing song from {url}: {e}")
         await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
 
+    # Monitor and reconnect on disconnect
+    while voice_client.is_connected():
+        await asyncio.sleep(1)  # Keep checking connection status
+        if not voice_client.is_connected():
+            logging.warning("Bot disconnected from the voice channel. Attempting to reconnect...")
+            await reconnect_voice(voice_client)
+
 # Stop playing and disconnect from the voice channel
 async def stop_play(interaction):
     voice_client = interaction.guild.voice_client
@@ -175,6 +145,24 @@ async def stop_play(interaction):
         logging.info(f"Bot left the voice channel: {voice_client.channel.name}")
     else:
         await interaction.response.send_message("The bot is not in a voice channel.", ephemeral=True)
+
+# Re-attempts to reconnect to the voice channel with exponential backoff
+async def reconnect_voice(voice_client, max_retries=5):
+    retries = 0
+    backoff_time = 1
+
+    while retries < max_retries:
+        try:
+            await voice_client.connect(reconnect=True)
+            logging.info("Successfully reconnected to the voice channel.")
+            return
+        except Exception as e:
+            retries += 1
+            logging.error(f"Reconnect attempt {retries} failed. Retrying in {backoff_time} seconds... {str(e)}")
+            await asyncio.sleep(backoff_time)
+            backoff_time *= 2  # Exponential backoff
+
+    logging.error(f"Failed to reconnect to the voice channel after {max_retries} attempts.")
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
@@ -407,6 +395,15 @@ async def on_message_delete(message):
 
     except Exception as e:
         logging.error(f"Error in on_message_delete event: {e}")
+
+# Handle bot reconnection
+@bot.event
+async def on_disconnect():
+    logging.warning("Bot disconnected. Attempting to reconnect...")
+
+@bot.event
+async def on_resumed():
+    logging.info("Bot successfully resumed the session.")
 
 # Event when the bot is ready
 @bot.event
