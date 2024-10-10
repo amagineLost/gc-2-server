@@ -103,7 +103,9 @@ async def play_song(interaction, url):
         ydl_opts = {
             'format': 'bestaudio',
             'noplaylist': True,
-            'ignoreerrors': True  # Skip videos that raise errors
+            'ignoreerrors': True,  # Skip videos that raise errors
+            'extract_flat': True,  # Avoid downloading video details that require login
+            'age_limit': 0,  # Do not allow age-restricted content
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -123,16 +125,17 @@ async def play_song(interaction, url):
         await interaction.followup.send(f"Now playing: {title}", ephemeral=False)
         logging.info(f"Playing {title} from {url} in {voice_channel.name}")
 
+    except yt_dlp.utils.ExtractorError as e:
+        if 'Sign in to confirm you’re not a bot' in str(e):
+            logging.error(f"Error playing song from {url}: Age-restricted or login required")
+            await interaction.followup.send("The video is age-restricted or requires a login. Please use another link.", ephemeral=True)
+        else:
+            logging.error(f"Error playing song from {url}: {e}")
+            await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
+
     except Exception as e:
         logging.error(f"Error playing song from {url}: {e}")
         await interaction.followup.send("Failed to play the song. Make sure the URL is valid or the video is public.", ephemeral=True)
-
-    # Monitor and reconnect on disconnect
-    while voice_client.is_connected():
-        await asyncio.sleep(1)  # Keep checking connection status
-        if not voice_client.is_connected():
-            logging.warning("Bot disconnected from the voice channel. Attempting to reconnect...")
-            await reconnect_voice(voice_client)
 
 # Stop playing and disconnect from the voice channel
 async def stop_play(interaction):
@@ -145,24 +148,6 @@ async def stop_play(interaction):
         logging.info(f"Bot left the voice channel: {voice_client.channel.name}")
     else:
         await interaction.response.send_message("The bot is not in a voice channel.", ephemeral=True)
-
-# Re-attempts to reconnect to the voice channel with exponential backoff
-async def reconnect_voice(voice_client, max_retries=5):
-    retries = 0
-    backoff_time = 1
-
-    while retries < max_retries:
-        try:
-            await voice_client.connect(reconnect=True)
-            logging.info("Successfully reconnected to the voice channel.")
-            return
-        except Exception as e:
-            retries += 1
-            logging.error(f"Reconnect attempt {retries} failed. Retrying in {backoff_time} seconds... {str(e)}")
-            await asyncio.sleep(backoff_time)
-            backoff_time *= 2  # Exponential backoff
-
-    logging.error(f"Failed to reconnect to the voice channel after {max_retries} attempts.")
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
