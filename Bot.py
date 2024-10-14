@@ -330,36 +330,36 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /send_message command: {e}")
             await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
-    # Sing a song line by line
-    @bot.command(name="sing", help="The bot will sing a song by sending lyrics one by one.")
-    async def sing(ctx):
-        global is_singing
-        is_singing = True  # Set the flag to True to indicate singing has started
+# Sing a song line by line
+@bot.command(name="sing", help="The bot will sing a song by sending lyrics one by one.")
+async def sing(ctx):  # Added 'ctx' parameter
+    global is_singing
+    is_singing = True  # Set the flag to True to indicate singing has started
 
-        try:
-            await ctx.send("🎤 Starting to sing! 🎶")
+    try:
+        await ctx.send("🎤 Starting to sing! 🎶")
 
-            for line in SONG_LYRICS:
-                if not is_singing:  # Stop singing if the stop command is used
-                    break
-                await ctx.send(line)
-                await asyncio.sleep(2)  # Wait for 2 seconds between each line
+        for line in SONG_LYRICS:
+            if not is_singing:  # Stop singing if the stop command is used
+                break
+            await ctx.send(line)
+            await asyncio.sleep(2)  # Wait for 2 seconds between each line
 
-            if is_singing:
-                await ctx.send("🎤 Song finished! 🎶")
-            else:
-                await ctx.send("🎤 Singing stopped. 🎶")
+        if is_singing:
+            await ctx.send("🎤 Song finished! 🎶")
+        else:
+            await ctx.send("🎤 Singing stopped. 🎶")
 
-        except Exception as e:
-            await ctx.send("Oops! Something went wrong while singing.")
-            logging.error(f"Error in /sing command: {e}")
+    except Exception as e:
+        await ctx.send("Oops! Something went wrong while singing.")
+        logging.error(f"Error in /sing command: {e}")
 
-    # Stop singing command
-    @bot.command(name="stop_singing", help="Stops the bot from singing.")
-    async def stop_singing(ctx):
-        global is_singing
-        is_singing = False  # Set the flag to False to stop the bot from singing
-        await ctx.send("🎤 Stopping the song! 🎶")
+# Stop singing command
+@bot.command(name="stop_singing", help="Stops the bot from singing.")
+async def stop_singing(ctx):  # Added 'ctx' parameter
+    global is_singing
+    is_singing = False  # Set the flag to False to stop the bot from singing
+    await ctx.send("🎤 Stopping the song! 🎶")
 
 # Add the cog to the bot and force command sync
 async def setup_hook():
