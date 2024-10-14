@@ -4,6 +4,7 @@ import random
 import logging
 import aiohttp
 import json
+import asyncio
 from discord import app_commands
 from discord.ext import commands
 
@@ -35,6 +36,20 @@ MARRIAGES_FILE = "marriages.json"
 
 # In-memory marriage storage
 marriages = {}
+
+# Global flag to control the singing process
+is_singing = False
+
+# Hard-code the lyrics
+SONG_LYRICS = [
+    "Is this the real life?",
+    "Is this just fantasy?",
+    "Caught in a landslide,",
+    "No escape from reality.",
+    "Open your eyes,",
+    "Look up to the skies and see...",
+    # Add more lines here...
+]
 
 # Load marriages from the file at startup
 def load_marriages():
@@ -107,10 +122,10 @@ def has_restricted_roles():
     async def predicate(interaction: discord.Interaction):
         allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
         user_roles = [role.id for role in interaction.user.roles]
-        
+
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
-        
+
         # Send an error message if the user doesn't have the required role
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
@@ -315,66 +330,36 @@ class MyBot(commands.Cog):
             logging.error(f"Error in /send_message command: {e}")
             await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
-# Message delete detection
-@bot.event
-async def on_message_delete(message):
-    try:
-        if message.author.bot:
-            return
+    # Sing a song line by line
+    @bot.command(name="sing", help="The bot will sing a song by sending lyrics one by one.")
+    async def sing(ctx):
+        global is_singing
+        is_singing = True  # Set the flag to True to indicate singing has started
 
-        reply_info = ""
-        if message.reference and message.reference.resolved:
-            replied_to = message.reference.resolved
-            reply_info = f"(This was a reply to {replied_to.author.mention})"
+        try:
+            await ctx.send("🎤 Starting to sing! 🎶")
 
-        deleted_message_info = (
-            f"🔴 {message.author.mention} just deleted a message: '{message.content}' {reply_info} "
-            f"in {message.channel.mention}."
-        )
+            for line in SONG_LYRICS:
+                if not is_singing:  # Stop singing if the stop command is used
+                    break
+                await ctx.send(line)
+                await asyncio.sleep(2)  # Wait for 2 seconds between each line
 
-        await message.channel.send(deleted_message_info)
-        logging.info(f"{message.author.name} deleted a message in {message.channel.name}: '{message.content}'")
+            if is_singing:
+                await ctx.send("🎤 Song finished! 🎶")
+            else:
+                await ctx.send("🎤 Singing stopped. 🎶")
 
-    except Exception as e:
-        logging.error(f"Error in on_message_delete event: {e}")
+        except Exception as e:
+            await ctx.send("Oops! Something went wrong while singing.")
+            logging.error(f"Error in /sing command: {e}")
 
-# Event when the bot is ready
-@bot.event
-async def on_ready():
-    global session
-    try:
-        logging.info(f'Logged in as {bot.user}!')
-
-        session = aiohttp.ClientSession()
-
-        # Load marriages from file at startup
-        load_marriages()
-
-        await bot.change_presence(activity=discord.Game(name="Shipping Members"))
-
-        await bot.tree.sync()
-        logging.info("Slash commands globally synced.")
-
-    except Exception as e:
-        logging.error(f"Error during on_ready: {e}")
-
-# Clean up session when bot closes
-@bot.event
-async def on_shutdown():
-    global session
-    if session:
-        await session.close()
-
-# Error handling for command errors
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You do not have permission to use this command.", ephemeral=True)
-    elif isinstance(error, commands.CommandNotFound):
-        await ctx.send("That command does not exist.", ephemeral=True)
-    else:
-        logging.error(f"Unexpected error: {error}")
-        await ctx.send("An unexpected error occurred.", ephemeral=True)
+    # Stop singing command
+    @bot.command(name="stop_singing", help="Stops the bot from singing.")
+    async def stop_singing(ctx):
+        global is_singing
+        is_singing = False  # Set the flag to False to stop the bot from singing
+        await ctx.send("🎤 Stopping the song! 🎶")
 
 # Add the cog to the bot and force command sync
 async def setup_hook():
