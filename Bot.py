@@ -40,15 +40,70 @@ marriages = {}
 # Global flag to control the singing process
 is_singing = False
 
-# Hard-code the lyrics
+# Pink Pony Club lyrics
 SONG_LYRICS = [
-    "Is this the real life?",
-    "Is this just fantasy?",
-    "Caught in a landslide,",
-    "No escape from reality.",
-    "Open your eyes,",
-    "Look up to the skies and see...",
-    # Add more lines here...
+    "I know you wanted me to stay",
+    "But I can't ignore the crazy visions of me in LA",
+    "And I heard that there's a special place",
+    "Where boys and girls can all be queens every single day",
+    "I'm having wicked dreams of leaving Tennessee",
+    "Hear Santa Monica, I swear it's calling me",
+    "Won't make my mama proud, it's gonna cause a scene",
+    "She sees her baby girl, I know she's gonna scream",
+    "God, what have you done?",
+    "You're a pink pony girl",
+    "And you dance at the club",
+    "Oh mama, I'm just having fun",
+    "On the stage in my heels",
+    "It's where I belong down at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing down in",
+    "West Hollywood",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club, Pink Pony Club",
+    "I'm up and jaws are on the floor",
+    "Lovers in the bathroom and a line outside the door",
+    "Blacklights and a mirrored disco ball",
+    "Every night's another reason why I left it all",
+    "I thank my wicked dreams a year from Tennessee",
+    "Oh, Santa Monica, you've been too good to me",
+    "Won't make my mama proud, it's gonna cause a scene",
+    "She sees her baby girl, I know she's gonna scream",
+    "God, what have you done?",
+    "You're a pink pony girl",
+    "And you dance at the club",
+    "Oh mama, I'm just having fun",
+    "On the stage in my heels",
+    "It's where I belong down at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing down in",
+    "West Hollywood",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club, Pink Pony Club",
+    "Don't think I've left you all behind",
+    "Still love you and Tennessee",
+    "You're always on my mind",
+    "And mama, every Saturday",
+    "I can hear your southern drawl a thousand miles away, saying",
+    "God, what have you done?",
+    "You're a pink pony girl",
+    "And you dance at the club",
+    "Oh mama, I'm just having fun",
+    "On the stage in my heels",
+    "It's where I belong down at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club",
+    "I'm gonna keep on dancing down in",
+    "West Hollywood",
+    "I'm gonna keep on dancing at the",
+    "Pink Pony Club, Pink Pony Club",
+    "I'm gonna keep on dancing",
+    "I'm gonna keep on dancing"
 ]
 
 # Load marriages from the file at startup
@@ -119,17 +174,17 @@ ALLIE_ID = 987654321  # Replace with Allie's actual ID
 
 # Restrict command access to specific roles
 def has_restricted_roles():
-    async def predicate(interaction: discord.Interaction):
+    async def predicate(ctx):
         allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
-        user_roles = [role.id for role in interaction.user.roles]
+        user_roles = [role.id for role in ctx.author.roles]
 
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
 
         # Send an error message if the user doesn't have the required role
-        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        await ctx.send("You do not have permission to use this command.", ephemeral=True)
         return False
-    return app_commands.check(predicate)
+    return commands.check(predicate)
 
 # Define the cog for application commands
 class MyBot(commands.Cog):
@@ -331,13 +386,14 @@ class MyBot(commands.Cog):
             await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
 # Sing a song line by line
-@bot.command(name="sing", help="The bot will sing a song by sending lyrics one by one.")
-async def sing(ctx):  # Added 'ctx' parameter
+@bot.command(name="sing", help="The bot will sing 'Pink Pony Club' by sending lyrics one by one.")
+@has_restricted_roles()  # Restrict to specific roles
+async def sing(ctx):
     global is_singing
     is_singing = True  # Set the flag to True to indicate singing has started
 
     try:
-        await ctx.send("🎤 Starting to sing! 🎶")
+        await ctx.send("🎤 Starting to sing 'Pink Pony Club'! 🎶")
 
         for line in SONG_LYRICS:
             if not is_singing:  # Stop singing if the stop command is used
@@ -356,7 +412,8 @@ async def sing(ctx):  # Added 'ctx' parameter
 
 # Stop singing command
 @bot.command(name="stop_singing", help="Stops the bot from singing.")
-async def stop_singing(ctx):  # Added 'ctx' parameter
+@has_restricted_roles()  # Restrict to specific roles
+async def stop_singing(ctx):
     global is_singing
     is_singing = False  # Set the flag to False to stop the bot from singing
     await ctx.send("🎤 Stopping the song! 🎶")
@@ -380,3 +437,4 @@ try:
     bot.run(DISCORD_TOKEN)
 except Exception as e:
     logging.error(f"Error starting the bot: {e}")
+            
