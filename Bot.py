@@ -24,6 +24,7 @@ intents.message_content = True    # Enable access to message content
 
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 
 # Store the bot's original information to revert later
 original_bot_name = None
@@ -174,35 +175,34 @@ ALLIE_ID = 987654321  # Replace with Allie's actual ID
 
 # Restrict command access to specific roles
 def has_restricted_roles():
-    async def predicate(ctx):
+    async def predicate(interaction: discord.Interaction):
         allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
-        user_roles = [role.id for role in ctx.author.roles]
+        user_roles = [role.id for role in interaction.user.roles]
 
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
 
         # Send an error message if the user doesn't have the required role
-        await ctx.send("You do not have permission to use this command.", ephemeral=True)
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
-    return commands.check(predicate)
+    return app_commands.check(predicate)
 
 # Ship command
-@bot.command(name="ship", help="Ship two random members together with a love score!")
-@commands.cooldown(1, 60, commands.BucketType.user)  # 1 minute cooldown
-async def ship(ctx):
+@tree.command(name="ship", description="Ship two random members together with a love score!")
+async def ship(interaction: discord.Interaction):
     eligible_members = [
-        member for member in ctx.guild.members 
+        member for member in interaction.guild.members
         if not member.bot and member.id not in EXCLUDED_USER_IDS and member.display_name not in EXCLUDED_USER_NAMES
     ]
 
-    zeeke = discord.utils.get(ctx.guild.members, id=ZEKE_ID)
-    allie = discord.utils.get(ctx.guild.members, id=ALLIE_ID)
+    zeeke = discord.utils.get(interaction.guild.members, id=ZEKE_ID)
+    allie = discord.utils.get(interaction.guild.members, id=ALLIE_ID)
 
     if zeeke and allie:
         eligible_members.extend([zeeke, allie] * 10)  # Add them 10 times to increase their chance
 
     if len(eligible_members) < 2:
-        await ctx.send("Not enough eligible members to ship!")
+        await interaction.response.send_message("Not enough eligible members to ship!", ephemeral=True)
         return
 
     random.shuffle(eligible_members)
@@ -216,7 +216,7 @@ async def ship(ctx):
         compatibility_percentage = random.randint(0, 100)
         custom_message = get_custom_message(compatibility_percentage)
 
-    await ctx.send(
+    await interaction.response.send_message(
         f"{person1.mention} and {person2.mention} have a {compatibility_percentage}% compatibility! 💘\n{custom_message}"
     )
 
@@ -258,85 +258,98 @@ def get_custom_message(compatibility_percentage):
             "This is the ultimate ship! 🚢💞"
         ])
 
-# Sing a song by title
-@bot.command(name="sing", help="The bot will sing a song by title (e.g., !sing pony club or !sing after midnight).")
+# Send message command
+@tree.command(name="send_message", description="Send a message to a specific channel.")
 @has_restricted_roles()  # Restrict to specific roles
-async def sing(ctx, *, song_title: str):
+async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, message: str):
+    try:
+        await channel.send(message)
+        await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
+    except Exception as e:
+        logging.error(f"Error in /send_message command: {e}")
+        await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
+
+# Sing a song by title
+@tree.command(name="sing", description="The bot will sing a song by title.")
+@has_restricted_roles()  # Restrict to specific roles
+async def sing(interaction: discord.Interaction, song_title: str):
     global is_singing
     song_title = song_title.lower()
 
-    # Check if the requested song is in the SONG_LYRICS dictionary
     if song_title not in SONG_LYRICS:
-        await ctx.send(f"Sorry, I don't know the song '{song_title}'. Available songs are: {', '.join(SONG_LYRICS.keys())}")
+        await interaction.response.send_message(
+            f"Sorry, I don't know the song '{song_title}'. Available songs are: {', '.join(SONG_LYRICS.keys())}",
+            ephemeral=True
+        )
         return
 
     is_singing = True  # Set the flag to True to indicate singing has started
     try:
-        await ctx.send(f"🎤 Starting to sing '{song_title.title()}'! 🎶")
+        await interaction.response.send_message(f"🎤 Starting to sing '{song_title.title()}'! 🎶")
 
         for line in SONG_LYRICS[song_title]:
             if not is_singing:  # Stop singing if the stop command is used
                 break
-            await ctx.send(line)
+            await interaction.channel.send(line)
             await asyncio.sleep(2)  # Wait for 2 seconds between each line
 
         if is_singing:
-            await ctx.send("🎤 Song finished! 🎶")
+            await interaction.channel.send("🎤 Song finished! 🎶")
         else:
-            await ctx.send("🎤 Singing stopped. 🎶")
+            await interaction.channel.send("🎤 Singing stopped. 🎶")
 
     except Exception as e:
-        await ctx.send("Oops! Something went wrong while singing.")
+        await interaction.channel.send("Oops! Something went wrong while singing.")
         logging.error(f"Error in /sing command: {e}")
 
 # Stop singing command
-@bot.command(name="stop_singing", help="Stops the bot from singing.")
+@tree.command(name="stop_singing", description="Stops the bot from singing.")
 @has_restricted_roles()  # Restrict to specific roles
-async def stop_singing(ctx):
+async def stop_singing(interaction: discord.Interaction):
     global is_singing
     is_singing = False  # Set the flag to False to stop the bot from singing
-    await ctx.send("🎤 Stopping the song! 🎶")
+    await interaction.response.send_message("🎤 Stopping the song! 🎶")
 
 # Marriage commands
-@bot.command(name="marry", help="Marry two people.")
+@tree.command(name="marry", description="Marry two people.")
 @has_restricted_roles()  # Restrict to specific roles
-async def marry(ctx, person1: discord.Member, person2: discord.Member):
+async def marry(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
     # Ensure they are not already married
     if (person1.id, person2.id) in marriages or (person2.id, person1.id) in marriages:
-        await ctx.send(f"{person1.mention} and {person2.mention} are already married!")
+        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are already married!")
         return
 
     marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
     save_marriages()  # Save marriages after adding
-    await ctx.send(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
+    await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
 
-@bot.command(name="remove_marriage", help="Remove a marriage.")
+@tree.command(name="remove_marriage", description="Remove a marriage.")
 @has_restricted_roles()  # Restrict to specific roles
-async def remove_marriage(ctx, person1: discord.Member, person2: discord.Member):
+async def remove_marriage(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
     # Check if the two people are married
     if (person1.id, person2.id) in marriages:
         del marriages[(person1.id, person2.id)]
     elif (person2.id, person1.id) in marriages:
         del marriages[(person2.id, person1.id)]
     else:
-        await ctx.send(f"{person1.mention} and {person2.mention} are not married!")
+        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!")
         return
 
     save_marriages()  # Save marriages after removal
-    await ctx.send(f"💔 {person1.mention} and {person2.mention} are no longer married.")
+    await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
 
-@bot.command(name="check_marriages", help="Check all current marriages.")
-async def check_marriages(ctx):
+@tree.command(name="check_marriages", description="Check all current marriages.")
+async def check_marriages(interaction: discord.Interaction):
     if not marriages:
-        await ctx.send("There are no current marriages.")
+        await interaction.response.send_message("There are no current marriages.")
         return
     marriage_list = "\n".join([f"{p1} ❤ {p2}" for (_, (p1, p2)) in marriages.items()])
-    await ctx.send(f"Here are the current marriages:\n\n{marriage_list}")
+    await interaction.response.send_message(f"Here are the current marriages:\n\n{marriage_list}")
 
 # Copy profile command
-@bot.command(name="copy", help="Copy another user's profile.")
+@tree.command(name="copy", description="Copy another user's profile.")
 @has_restricted_roles()  # Restrict to specific roles
-async def copy(ctx, target: discord.Member):
+async def copy(interaction: discord.Interaction, target: discord.Member):
     global original_bot_name, original_bot_avatar, original_bot_status, session
 
     if original_bot_name is None:
@@ -355,16 +368,16 @@ async def copy(ctx, target: discord.Member):
                     await bot.user.edit(avatar=data)
 
         await bot.change_presence(activity=discord.Game(name=target.activity.name if target.activity else "No status"))
-        await ctx.send(f"Copied {target.mention}'s profile successfully!")
+        await interaction.response.send_message(f"Copied {target.mention}'s profile successfully!")
 
     except Exception as e:
         logging.error(f"Error in /copy command: {e}")
-        await ctx.send(f"Failed to copy {target.mention}'s profile.")
+        await interaction.response.send_message(f"Failed to copy {target.mention}'s profile.")
 
 # Revert bot profile command
-@bot.command(name="stop", help="Revert the bot back to its original profile.")
+@tree.command(name="stop", description="Revert the bot back to its original profile.")
 @has_restricted_roles()  # Restrict to specific roles
-async def stop(ctx):
+async def stop(interaction: discord.Interaction):
     global original_bot_name, original_bot_avatar, original_bot_status
 
     try:
@@ -375,21 +388,21 @@ async def stop(ctx):
         if original_bot_status:
             await bot.change_presence(activity=original_bot_status)
 
-        await ctx.send("Reverted back to the original profile!")
+        await interaction.response.send_message("Reverted back to the original profile!")
     except Exception as e:
         logging.error(f"Error in /stop command: {e}")
-        await ctx.send("Failed to revert back to the original profile.")
+        await interaction.response.send_message("Failed to revert back to the original profile.")
 
 # Send message command
-@bot.command(name="send_message", help="Send a message to a specific channel.")
+@tree.command(name="send_message", description="Send a message to a specific channel.")
 @has_restricted_roles()  # Restrict to specific roles
-async def send_message(ctx, channel: discord.TextChannel, *, message: str):
+async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
     try:
         await channel.send(message)
-        await ctx.send(f"Message sent to {channel.mention}")
+        await interaction.response.send_message(f"Message sent to {channel.mention}")
     except Exception as e:
         logging.error(f"Error in /send_message command: {e}")
-        await ctx.send("An error occurred while sending the message.")
+        await interaction.response.send_message("An error occurred while sending the message.")
 
 # Load marriages from the file at startup
 def load_marriages():
@@ -413,11 +426,15 @@ def save_marriages():
 
 # Bot setup hook
 async def setup_hook():
-    try:
-        load_marriages()  # Load marriages when bot starts
-        logging.info("Successfully initialized bot.")
-    except Exception as e:
-        logging.error(f"Error setting up bot: {e}")
+    global session
+    session = aiohttp.ClientSession()
+    load_marriages()  # Load marriages when bot starts
+    logging.info("Bot setup complete.")
+
+@bot.event
+async def on_ready():
+    await bot.tree.sync()  # Sync the app commands (slash commands) with Discord
+    print(f'Logged in as {bot.user}')
 
 bot.setup_hook = setup_hook
 
@@ -426,4 +443,3 @@ try:
     bot.run(DISCORD_TOKEN)
 except Exception as e:
     logging.error(f"Error starting the bot: {e}")
-    
