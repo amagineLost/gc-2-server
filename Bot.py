@@ -13,15 +13,17 @@ logging.basicConfig(level=logging.INFO)
 
 # Retrieve the bot token from Render's environment variables
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+if not DISCORD_TOKEN:
+    raise ValueError("DISCORD_TOKEN environment variable not set!")
 
 # Role IDs for restricted commands
 ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 
 # Enable all intents including the privileged ones
 intents = discord.Intents.default()
-intents.members = True            # Enable access to server members
-intents.message_content = True    # Enable access to message content
-intents.messages = True           # Enable message-related events like deletion detection
+intents.members = True  # Enable access to server members
+intents.message_content = True  # Enable access to message content
+intents.messages = True  # Enable message-related events like deletion detection
 
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -51,6 +53,58 @@ SONG_LYRICS = {
     "after midnight": [
         "My mama said, 'Nothing good happens",
         "When it's late and you're dancing alone'",
+        "She's in my head saying, 'It's not attractive",
+        "Wearing that dress and red lipstick'",
+        "This is what I wanted, this is what I like",
+        "I've been a good, good girl for a long time (this is what I like)",
+        "But, baby, I like flirting, a lover by my side",
+        "Can't be a good, good girl, even if I tried",
+        "'Cause after midnight",
+        "I'm feeling kinda freaky, maybe it's the club lights",
+        "I kinda wanna kiss your girlfriend if you don't mind",
+        "I love a little drama, let's start a bar fight",
+        "'Cause everything good happens",
+        "After midnight",
+        "I'm feeling kinda freaky, maybe it's the moonlight",
+        "I kinda wanna kiss your boyfriend if you don't mind",
+        "I love a little, uh-huh, let's watch the sunrise",
+        "'Cause everything good happens after",
+        "I really want your hands on my body",
+        "A slow dance, baby, let's get it on",
+        "That's my type of fun, that's my kind of party",
+        "Your hands on my body, your hot hands",
+        "This is what I wanted, this is what I like",
+        "I've been a good, good girl for a long time (it's what I wanted)",
+        "Baby, I like flirting, a lover by my side",
+        "Can't be a good, good girl, even if I tried",
+        "'Cause after midnight",
+        "I'm feeling kinda freaky, maybe it's the club lights",
+        "I kinda wanna kiss your girlfriend if you don't mind",
+        "I love a little drama, let's start a bar fight",
+        "'Cause everything good happens",
+        "After midnight",
+        "I'm feeling kinda freaky, maybe it's the moonlight",
+        "I kinda wanna kiss your boyfriend if you don't mind",
+        "I love a little uh-huh, let's watch the sunrise",
+        "'Cause everything good happens after midnight",
+        "Baby, put your hands up, be a freak in the club",
+        "Yeah, we'll make a move, then we're making out",
+        "Yeah, we're makin', make love (it's what I want)",
+        "Yeah, we're makin', make love, be a freak in the club",
+        "Be a freak in the club, yeah",
+        "'Cause after midnight",
+        "I'm feeling kinda freaky, maybe it's the club lights",
+        "I kinda wanna kiss your girlfriend if you don't mind",
+        "(If you get off me)",
+        "I love a little drama, let's start a bar fight",
+        "(Then we can kick 'em all out)",
+        "'Cause everything good happens",
+        "After midnight",
+        "I'm feeling kinda freaky, maybe it's the moonlight (ah)",
+        "I kinda wanna kiss your boyfriend if you don't mind",
+        "(If you don't, if you don't mind)",
+        "I love a little uh-huh, let's watch the sunrise",
+        "'Cause everything good happens after-"
     ]
 }
 
