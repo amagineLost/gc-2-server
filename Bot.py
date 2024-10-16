@@ -21,6 +21,7 @@ ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 intents = discord.Intents.default()
 intents.members = True            # Enable access to server members
 intents.message_content = True    # Enable access to message content
+intents.messages = True           # Enable message-related events like deletion detection
 
 # Create a bot instance with the defined intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -46,12 +47,10 @@ SONG_LYRICS = {
     "pony club": [
         "I know you wanted me to stay",
         "But I can't ignore the crazy visions of me in LA",
-        # ... (truncated for brevity) ...
     ],
     "after midnight": [
         "My mama said, 'Nothing good happens",
         "When it's late and you're dancing alone'",
-        # ... (truncated for brevity) ...
     ]
 }
 
@@ -72,7 +71,6 @@ def has_restricted_roles():
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
 
-        # Send an error message if the user doesn't have the required role
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
@@ -149,10 +147,9 @@ def get_custom_message(compatibility_percentage):
         ])
 
 # Send message command
-# Check if 'send_message' is already registered, and only add if not
 if not tree.get_command('send_message'):
     @tree.command(name="send_message", description="Send a message to a specific channel.")
-    @has_restricted_roles()  # Restrict to specific roles
+    @has_restricted_roles()
     async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
         try:
             await channel.send(message)
@@ -163,7 +160,7 @@ if not tree.get_command('send_message'):
 
 # Sing a song by title
 @tree.command(name="sing", description="The bot will sing a song by title.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def sing(interaction: discord.Interaction, song_title: str):
     global is_singing
     song_title = song_title.lower()
@@ -175,15 +172,15 @@ async def sing(interaction: discord.Interaction, song_title: str):
         )
         return
 
-    is_singing = True  # Set the flag to True to indicate singing has started
+    is_singing = True
     try:
         await interaction.response.send_message(f"🎤 Starting to sing '{song_title.title()}'! 🎶")
 
         for line in SONG_LYRICS[song_title]:
-            if not is_singing:  # Stop singing if the stop command is used
+            if not is_singing:
                 break
             await interaction.channel.send(line)
-            await asyncio.sleep(2)  # Wait for 2 seconds between each line
+            await asyncio.sleep(2)
 
         if is_singing:
             await interaction.channel.send("🎤 Song finished! 🎶")
@@ -196,29 +193,50 @@ async def sing(interaction: discord.Interaction, song_title: str):
 
 # Stop singing command
 @tree.command(name="stop_singing", description="Stops the bot from singing.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def stop_singing(interaction: discord.Interaction):
     global is_singing
-    is_singing = False  # Set the flag to False to stop the bot from singing
+    is_singing = False
     await interaction.response.send_message("🎤 Stopping the song! 🎶")
+
+# Detect deleted messages in any channel and log it in the same channel
+@bot.event
+async def on_message_delete(message):
+    if message.guild and message.content:
+        try:
+            if message.reference and message.reference.resolved:
+                replied_user = message.reference.resolved.author
+                reply_info = f"(This was a reply to {replied_user.mention})"
+            else:
+                reply_info = ""
+
+            embed = discord.Embed(
+                description=f"{message.author.mention} just deleted a message: '{message.content}' {reply_info} in {message.channel.mention}",
+                color=discord.Color.red()
+            )
+
+            await message.channel.send(embed=embed)
+
+        except discord.Forbidden:
+            logging.error("Bot does not have permission to send messages in this channel.")
+        except Exception as e:
+            logging.error(f"Error sending deleted message log: {e}")
 
 # Marriage commands
 @tree.command(name="marry", description="Marry two people.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def marry(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
-    # Ensure they are not already married
     if (person1.id, person2.id) in marriages or (person2.id, person1.id) in marriages:
         await interaction.response.send_message(f"{person1.mention} and {person2.mention} are already married!")
         return
 
     marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
-    save_marriages()  # Save marriages after adding
+    save_marriages()
     await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
 
 @tree.command(name="remove_marriage", description="Remove a marriage.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def remove_marriage(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
-    # Check if the two people are married
     if (person1.id, person2.id) in marriages:
         del marriages[(person1.id, person2.id)]
     elif (person2.id, person1.id) in marriages:
@@ -227,20 +245,12 @@ async def remove_marriage(interaction: discord.Interaction, person1: discord.Mem
         await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!")
         return
 
-    save_marriages()  # Save marriages after removal
+    save_marriages()
     await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
-
-@tree.command(name="check_marriages", description="Check all current marriages.")
-async def check_marriages(interaction: discord.Interaction):
-    if not marriages:
-        await interaction.response.send_message("There are no current marriages.")
-        return
-    marriage_list = "\n".join([f"{p1} ❤ {p2}" for (_, (p1, p2)) in marriages.items()])
-    await interaction.response.send_message(f"Here are the current marriages:\n\n{marriage_list}")
 
 # Copy profile command
 @tree.command(name="copy", description="Copy another user's profile.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def copy(interaction: discord.Interaction, target: discord.Member):
     global original_bot_name, original_bot_avatar, original_bot_status, session
 
@@ -268,7 +278,7 @@ async def copy(interaction: discord.Interaction, target: discord.Member):
 
 # Revert bot profile command
 @tree.command(name="stop", description="Revert the bot back to its original profile.")
-@has_restricted_roles()  # Restrict to specific roles
+@has_restricted_roles()
 async def stop(interaction: discord.Interaction):
     global original_bot_name, original_bot_avatar, original_bot_status
 
@@ -309,12 +319,12 @@ def save_marriages():
 async def setup_hook():
     global session
     session = aiohttp.ClientSession()
-    load_marriages()  # Load marriages when bot starts
+    load_marriages()
     logging.info("Bot setup complete.")
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()  # Sync the app commands (slash commands) with Discord
+    await bot.tree.sync()
     print(f'Logged in as {bot.user}')
 
 bot.setup_hook = setup_hook
