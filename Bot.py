@@ -96,7 +96,7 @@ def has_restricted_roles():
 # Function to spawn a cat
 async def spawn_cat():
     global cat_spawned, cat_channel
-    await asyncio.sleep(random.randint(60, 300))  # Random spawn time between 1 and 5 minutes
+    await asyncio.sleep(random.randint(300, 900))  # Random spawn time between 1 and 5 minutes
 
     # Ensure a channel is set for cat spawning
     if not cat_channel:
