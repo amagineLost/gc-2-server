@@ -153,12 +153,18 @@ async def eight_ball(interaction: discord.Interaction, question: str):
     response = random.choice(EIGHT_BALL_RESPONSES)
     await interaction.response.send_message(f"🎱 {response}")
 
-# /choose command
-@tree.command(name="choose", description="Randomly choose between different options")
-async def choose(interaction: discord.Interaction, *options: str):
-    if len(options) < 2:
-        await interaction.response.send_message("Please provide at least two options.", ephemeral=True)
-        return
+# /choose command - fixed to handle specific options instead of *args
+@tree.command(name="choose", description="Randomly choose between up to five options")
+async def choose(interaction: discord.Interaction, option1: str, option2: str, option3: str = None, option4: str = None, option5: str = None):
+    options = [option1, option2]
+
+    if option3:
+        options.append(option3)
+    if option4:
+        options.append(option4)
+    if option5:
+        options.append(option5)
+
     choice = random.choice(options)
     await interaction.response.send_message(f"🤔 I choose: **{choice}**!")
 
