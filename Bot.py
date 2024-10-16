@@ -129,6 +129,39 @@ def has_restricted_roles():
         return False
     return app_commands.check(predicate)
 
+# 8-ball responses
+EIGHT_BALL_RESPONSES = [
+    "It is certain.",
+    "Without a doubt.",
+    "Yes, definitely.",
+    "You may rely on it.",
+    "Most likely.",
+    "Outlook good.",
+    "Yes.",
+    "Reply hazy, try again.",
+    "Ask again later.",
+    "Cannot predict now.",
+    "Don't count on it.",
+    "My reply is no.",
+    "Outlook not so good.",
+    "Very doubtful."
+]
+
+# /8ball command
+@tree.command(name="8ball", description="Ask the magic 8-ball a yes/no question!")
+async def eight_ball(interaction: discord.Interaction, question: str):
+    response = random.choice(EIGHT_BALL_RESPONSES)
+    await interaction.response.send_message(f"🎱 {response}")
+
+# /choose command
+@tree.command(name="choose", description="Randomly choose between different options")
+async def choose(interaction: discord.Interaction, *options: str):
+    if len(options) < 2:
+        await interaction.response.send_message("Please provide at least two options.", ephemeral=True)
+        return
+    choice = random.choice(options)
+    await interaction.response.send_message(f"🤔 I choose: **{choice}**!")
+
 # Ship command
 @tree.command(name="ship", description="Ship two random members together with a love score!")
 async def ship(interaction: discord.Interaction):
@@ -162,7 +195,7 @@ async def ship(interaction: discord.Interaction):
         f"{person1.mention} and {person2.mention} have a {compatibility_percentage}% compatibility! 💘\n{custom_message}"
     )
 
-# Custom compatibility messages
+# Custom compatibility messages for /ship
 def get_custom_message(compatibility_percentage):
     if compatibility_percentage < 25:
         return random.choice([
@@ -199,18 +232,6 @@ def get_custom_message(compatibility_percentage):
             "It doesn’t get better than this! 🌟",
             "This is the ultimate ship! 🚢💞"
         ])
-
-# Send message command
-if not tree.get_command('send_message'):
-    @tree.command(name="send_message", description="Send a message to a specific channel.")
-    @has_restricted_roles()
-    async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
-        try:
-            await channel.send(message)
-            await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
-        except Exception as e:
-            logging.error(f"Error in /send_message command: {e}")
-            await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
 # Sing a song by title
 @tree.command(name="sing", description="The bot will sing a song by title.")
@@ -253,54 +274,17 @@ async def stop_singing(interaction: discord.Interaction):
     is_singing = False
     await interaction.response.send_message("🎤 Stopping the song! 🎶")
 
-# Detect deleted messages in any channel and log it in the same channel
-@bot.event
-async def on_message_delete(message):
-    if message.guild and message.content:
+# Send message command
+if not tree.get_command('send_message'):
+    @tree.command(name="send_message", description="Send a message to a specific channel.")
+    @has_restricted_roles()
+    async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
         try:
-            if message.reference and message.reference.resolved:
-                replied_user = message.reference.resolved.author
-                reply_info = f"(This was a reply to {replied_user.mention})"
-            else:
-                reply_info = ""
-
-            embed = discord.Embed(
-                description=f"{message.author.mention} just deleted a message: '{message.content}' {reply_info} in {message.channel.mention}",
-                color=discord.Color.red()
-            )
-
-            await message.channel.send(embed=embed)
-
-        except discord.Forbidden:
-            logging.error("Bot does not have permission to send messages in this channel.")
+            await channel.send(message)
+            await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
         except Exception as e:
-            logging.error(f"Error sending deleted message log: {e}")
-
-# Marriage commands
-@tree.command(name="marry", description="Marry two people.")
-@has_restricted_roles()
-async def marry(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
-    if (person1.id, person2.id) in marriages or (person2.id, person1.id) in marriages:
-        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are already married!")
-        return
-
-    marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
-    save_marriages()
-    await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
-
-@tree.command(name="remove_marriage", description="Remove a marriage.")
-@has_restricted_roles()
-async def remove_marriage(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
-    if (person1.id, person2.id) in marriages:
-        del marriages[(person1.id, person2.id)]
-    elif (person2.id, person1.id) in marriages:
-        del marriages[(person2.id, person1.id)]
-    else:
-        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!")
-        return
-
-    save_marriages()
-    await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
+            logging.error(f"Error in /send_message command: {e}")
+            await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
 # Copy profile command
 @tree.command(name="copy", description="Copy another user's profile.")
@@ -348,6 +332,55 @@ async def stop(interaction: discord.Interaction):
     except Exception as e:
         logging.error(f"Error in /stop command: {e}")
         await interaction.response.send_message("Failed to revert back to the original profile.")
+
+# Marriage commands
+@tree.command(name="marry", description="Marry two people.")
+@has_restricted_roles()
+async def marry(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
+    if (person1.id, person2.id) in marriages or (person2.id, person1.id) in marriages:
+        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are already married!")
+        return
+
+    marriages[(person1.id, person2.id)] = (person1.display_name, person2.display_name)
+    save_marriages()
+    await interaction.response.send_message(f"🎉 {person1.mention} and {person2.mention} just got married! 💍")
+
+@tree.command(name="remove_marriage", description="Remove a marriage.")
+@has_restricted_roles()
+async def remove_marriage(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member):
+    if (person1.id, person2.id) in marriages:
+        del marriages[(person1.id, person2.id)]
+    elif (person2.id, person1.id) in marriages:
+        del marriages[(person2.id, person1.id)]
+    else:
+        await interaction.response.send_message(f"{person1.mention} and {person2.mention} are not married!")
+        return
+
+    save_marriages()
+    await interaction.response.send_message(f"💔 {person1.mention} and {person2.mention} are no longer married.")
+
+# Detect deleted messages in any channel and log it in the same channel
+@bot.event
+async def on_message_delete(message):
+    if message.guild and message.content:
+        try:
+            if message.reference and message.reference.resolved:
+                replied_user = message.reference.resolved.author
+                reply_info = f"(This was a reply to {replied_user.mention})"
+            else:
+                reply_info = ""
+
+            embed = discord.Embed(
+                description=f"{message.author.mention} just deleted a message: '{message.content}' {reply_info} in {message.channel.mention}",
+                color=discord.Color.red()
+            )
+
+            await message.channel.send(embed=embed)
+
+        except discord.Forbidden:
+            logging.error("Bot does not have permission to send messages in this channel.")
+        except Exception as e:
+            logging.error(f"Error sending deleted message log: {e}")
 
 # Load marriages from the file at startup
 def load_marriages():
