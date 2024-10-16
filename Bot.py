@@ -7,7 +7,6 @@ import json
 import asyncio
 from discord import app_commands
 from discord.ext import commands
-from collections import defaultdict  # For cat-catching game
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -62,7 +61,6 @@ SONG_LYRICS = {
     "after midnight": [
         "My mama said, 'Nothing good happens",
         "When it's late and you're dancing alone'",
-        # Additional lyrics here...
     ]
 }
 
@@ -73,12 +71,6 @@ EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
 # Special user IDs for guaranteed 100% compatibility
 ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
 ALLIE_ID = 987654321  # Replace with Allie's actual ID
-
-# Cat catching game setup
-cat_catches = defaultdict(int)  # Tracks how many cats each user has caught
-cat_spawned = False  # Flag to check if a cat is currently available
-cat_channel = None  # The channel where the cat spawns
-cat_catcher = None  # The user who caught the cat
 
 # Restrict command access to specific roles
 def has_restricted_roles():
@@ -92,69 +84,6 @@ def has_restricted_roles():
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
-
-# Function to spawn a cat
-async def spawn_cat():
-    global cat_spawned, cat_channel
-    await asyncio.sleep(random.randint(300, 900))  # Random spawn time between 1 and 5 minutes
-
-    # Ensure a channel is set for cat spawning
-    if not cat_channel:
-        print("No channel set for cat spawning.")
-        return
-
-    await cat_channel.send("A wild 🐱 **cat** has appeared! Type `cat` to catch it!")
-    cat_spawned = True  # Set the flag to indicate a cat is spawned
-
-# Listen for messages to catch the cat
-@bot.event
-async def on_message(message):
-    global cat_spawned, cat_catcher
-
-    # Check if the message is in the right channel and the cat is spawned
-    if cat_spawned and message.channel == cat_channel and message.content.lower() == "cat":
-        cat_spawned = False  # Reset the spawn flag
-        cat_catcher = message.author
-        cat_catches[cat_catcher.id] += 1  # Increment catch count for the user
-
-        await message.channel.send(f"🎉 {message.author.mention} caught the cat! They've now caught {cat_catches[cat_catcher.id]} cat(s).")
-
-        # Optionally, start the next cat spawn
-        await asyncio.create_task(spawn_cat())  # Start another spawn
-
-    await bot.process_commands(message)
-
-# Command to set the channel for cat spawning
-@tree.command(name="set_cat_channel", description="Set the channel where cats will spawn.")
-@has_restricted_roles()
-async def set_cat_channel(interaction: discord.Interaction, channel: discord.TextChannel):
-    global cat_channel
-    cat_channel = channel
-    await interaction.response.send_message(f"Cats will now spawn in {channel.mention}.")
-    await asyncio.create_task(spawn_cat())  # Start the first spawn
-
-# Command to display the leaderboard
-@tree.command(name="cat_leaderboard", description="Check the top cat catchers.")
-async def cat_leaderboard(interaction: discord.Interaction):
-    if not cat_catches:
-        await interaction.response.send_message("No one has caught a cat yet! 😿")
-        return
-
-    leaderboard = sorted(cat_catches.items(), key=lambda x: x[1], reverse=True)
-    leaderboard_message = "**Cat Catch Leaderboard**:\n"
-    for i, (user_id, catch_count) in enumerate(leaderboard[:10], start=1):
-        user = await bot.fetch_user(user_id)
-        leaderboard_message += f"{i}. {user.name} - {catch_count} cats\n"
-
-    await interaction.response.send_message(leaderboard_message)
-
-# Command to reset the leaderboard
-@tree.command(name="reset_cat_leaderboard", description="Reset the cat catching leaderboard.")
-@has_restricted_roles()
-async def reset_cat_leaderboard(interaction: discord.Interaction):
-    global cat_catches
-    cat_catches.clear()  # Reset the leaderboard
-    await interaction.response.send_message("Cat catching leaderboard has been reset.")
 
 # /8ball command
 EIGHT_BALL_RESPONSES = [
