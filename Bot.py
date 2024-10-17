@@ -48,19 +48,37 @@ is_singing = False
 SONG_LYRICS = {
     "pony club": [
         "I know you wanted me to stay",
-        "But I can't ignore the crazy visions of me in LA",
-        "I'm taking time to do what's right for me",
-        "Taking time for everyone I see",
+        "But I can't ignore the visions of LA",
+        "I’m dreaming of a new place and a new time",
+        "Where every hill I climb is mine",
+        "Oh, I’m heading to the pony club tonight",
+        "Where the lights are shining bright",
+        "Riding under neon skies",
+        "I’m free, I’m alive",
         "Oh, I'm going to the pony club",
-        "Just to prove that I'm on top",
+        "Just to prove that I can’t be stopped",
         "Oh, I'm going to the pony club",
-        "Just to show that I'm in luck",
+        "To ride the dream, no matter the cost",
+        "I’ll chase the thrill, under the city lights",
+        "No more doubts, no more fights.",
         "I'm no longer a fool",
-        "I'm just riding for the thrill",
+        "I'm just riding for the thrill."
     ],
     "after midnight": [
         "My mama said, 'Nothing good happens",
-        "When it's late and you're dancing alone'",
+        "When it’s late and you’re on your own'",
+        "But I can’t resist the afterglow",
+        "I’m drawn to the night, I can’t say no",
+        "Oh, after midnight, the world is mine",
+        "I feel alive, I’m in my prime",
+        "Oh, after midnight, I lose control",
+        "But I find myself in the rhythm’s soul",
+        "Lights are flashing, music’s loud",
+        "I’m just one face in the crowd",
+        "Oh, after midnight, I’m free to be wild",
+        "Dancing alone but with a smile",
+        "This is where I belong, where I shine",
+        "Under the stars, feeling divine."
     ]
 }
 
@@ -76,7 +94,7 @@ ALLIE_ID = 987654321  # Replace with Allie's actual ID
 def has_restricted_roles():
     async def predicate(interaction: discord.Interaction):
         allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
-        user_roles = [role.id for role in interaction.user.roles]
+        user_roles = [role.id for role_id in interaction.user.roles]
 
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
