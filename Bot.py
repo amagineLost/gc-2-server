@@ -93,8 +93,8 @@ ALLIE_ID = 987654321  # Replace with Allie's actual ID
 # Restrict command access to specific roles
 def has_restricted_roles():
     async def predicate(interaction: discord.Interaction):
-        allowed_roles = ALLOWED_ROLE_IDS  # List of allowed role IDs
-        user_roles = [role.id for role_id in interaction.user.roles]
+        allowed_roles = ALLOWED_ROLE_IDS
+        user_roles = [role.id for role in interaction.user.roles]
 
         if any(role_id in user_roles for role_id in allowed_roles):
             return True
@@ -201,6 +201,18 @@ def get_custom_message(compatibility_percentage):
             "It doesn’t get better than this! 🌟",
             "This is the ultimate ship! 🚢💞"
         ])
+
+# New command: ship_with_percentage
+@tree.command(name="ship_with_percentage", description="Ship two users with a specified compatibility percentage.")
+async def ship_with_percentage(interaction: discord.Interaction, person1: discord.Member, person2: discord.Member, percentage: int):
+    if percentage < 0 or percentage > 100:
+        await interaction.response.send_message("Please provide a percentage between 0 and 100.", ephemeral=True)
+        return
+
+    custom_message = get_custom_message(percentage)
+    await interaction.response.send_message(
+        f"{person1.mention} and {person2.mention} have a {percentage}% compatibility! 💘\n{custom_message}"
+    )
 
 # Sing a song by title
 @tree.command(name="sing", description="The bot will sing a song by title.")
@@ -337,6 +349,18 @@ def save_marriages():
     except Exception as e:
         logging.error(f"Error saving marriages: {e}")
 
+# Load marriages from a file
+def load_marriages():
+    global marriages
+    try:
+        with open(MARRIAGES_FILE, 'r') as f:
+            marriages = json.load(f)
+            logging.info("Marriages loaded from file.")
+    except FileNotFoundError:
+        logging.info("No marriages file found. Starting fresh.")
+    except Exception as e:
+        logging.error(f"Error loading marriages: {e}")
+
 # Message delete detection
 @bot.event
 async def on_message_delete(message):
@@ -366,8 +390,15 @@ async def setup_hook():
     session = aiohttp.ClientSession()
     logging.info("Bot setup complete.")
 
+# Close the aiohttp session when the bot shuts down
+@bot.event
+async def on_close():
+    if session:
+        await session.close()
+
 @bot.event
 async def on_ready():
+    load_marriages()
     await bot.tree.sync()
     print(f'Logged in as {bot.user}')
 
