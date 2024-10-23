@@ -48,6 +48,21 @@ marriages = {}
 # Global flag to control the singing process
 is_singing = False
 
+# Restrict command access to specific roles
+def has_restricted_roles():
+    async def predicate(interaction: discord.Interaction):
+        allowed_roles = ALLOWED_ROLE_IDS
+        user_roles = [role.id for role in interaction.user.roles]
+
+        # Check if the user has any of the allowed roles
+        if any(role_id in user_roles for role_id in allowed_roles):
+            return True
+
+        # If not, send an ephemeral response indicating no permission
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        return False
+    return app_commands.check(predicate)
+
 # Ground a user for a specified amount of time
 @tree.command(name="ground", description="Grounds a user for a specified amount of time.")
 @has_restricted_roles()
