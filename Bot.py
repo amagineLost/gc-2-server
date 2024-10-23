@@ -72,17 +72,20 @@ async def ground(interaction: discord.Interaction, user: discord.Member, duratio
     if not grounded_role:
         await interaction.response.send_message("Grounded role not found!", ephemeral=True)
         return
+    
+    # Defer the interaction to acknowledge it without sending a message immediately
+    await interaction.response.defer()
 
     # Add the grounded role to the user
     await user.add_roles(grounded_role)
-    await interaction.response.send_message(f"{user.mention} has been grounded for {duration} minutes.")
+    await interaction.followup.send(f"{user.mention} has been grounded for {duration} minutes.")
 
     # Wait for the specified duration
     await asyncio.sleep(duration * 60)
 
     # Automatically remove the grounded role after the time passes
     await user.remove_roles(grounded_role)
-    await interaction.channel.send(f"{user.mention} has been ungrounded.")
+    await interaction.followup.send(f"{user.mention} has been ungrounded.")
 
 # Unground a user manually
 @tree.command(name="unground", description="Ungrounds a user, removing their grounded status.")
