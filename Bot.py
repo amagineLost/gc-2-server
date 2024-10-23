@@ -361,13 +361,14 @@ def load_marriages():
     except Exception as e:
         logging.error(f"Error loading marriages: {e}")
 
-# Message delete detection (ignores messages deleted by any bot, including the current bot)
+# Message delete detection (ignores messages deleted by any bot or webhooks)
 @bot.event
 async def on_message_delete(message):
-    # Check if the message author is a bot (including the current bot)
-    if message.author == bot.user or message.author.bot:
-        return  # Ignore messages deleted by bots, including this bot
-    
+    # Check if the message was sent by a bot or webhook
+    if message.author.bot or message.webhook_id is not None:
+        return  # Ignore messages deleted by bots or webhooks
+
+    # Only proceed if the message was deleted in a guild (server)
     if message.guild and message.content:
         try:
             # Check if the deleted message was a reply to someone
