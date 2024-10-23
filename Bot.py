@@ -20,7 +20,7 @@ if not DISCORD_TOKEN:
 ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 
 # Grounded role ID and ground duration
-GROUNDED_ROLE_ID = 123456789012345678  # Replace with your actual grounded role ID
+GROUNDED_ROLE_ID = 1292998405005508689  # Replace with your actual grounded role ID
 GROUND_DURATION_MINUTES = 5  # Time in minutes for how long a user is grounded
 
 # Enable all intents including the privileged ones
