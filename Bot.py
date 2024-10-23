@@ -19,6 +19,10 @@ if not DISCORD_TOKEN:
 # Role IDs for restricted commands
 ALLOWED_ROLE_IDS = [1292555279246032916, 1292555408724066364]
 
+# Grounded role ID and ground duration
+GROUNDED_ROLE_ID = 123456789012345678  # Replace with your actual grounded role ID
+GROUND_DURATION_MINUTES = 5  # Time in minutes for how long a user is grounded
+
 # Enable all intents including the privileged ones
 intents = discord.Intents.default()
 intents.members = True  # Enable access to server members
@@ -44,64 +48,39 @@ marriages = {}
 # Global flag to control the singing process
 is_singing = False
 
-# Dictionary to store multiple songs with titles as keys
-SONG_LYRICS = {
-    "pony club": [
-        "I know you wanted me to stay",
-        "But I can't ignore the visions of LA",
-        "I’m dreaming of a new place and a new time",
-        "Where every hill I climb is mine",
-        "Oh, I’m heading to the pony club tonight",
-        "Where the lights are shining bright",
-        "Riding under neon skies",
-        "I’m free, I’m alive",
-        "Oh, I'm going to the pony club",
-        "Just to prove that I can’t be stopped",
-        "Oh, I'm going to the pony club",
-        "To ride the dream, no matter the cost",
-        "I’ll chase the thrill, under the city lights",
-        "No more doubts, no more fights.",
-        "I'm no longer a fool",
-        "I'm just riding for the thrill."
-    ],
-    "after midnight": [
-        "My mama said, 'Nothing good happens",
-        "When it’s late and you’re on your own'",
-        "But I can’t resist the afterglow",
-        "I’m drawn to the night, I can’t say no",
-        "Oh, after midnight, the world is mine",
-        "I feel alive, I’m in my prime",
-        "Oh, after midnight, I lose control",
-        "But I find myself in the rhythm’s soul",
-        "Lights are flashing, music’s loud",
-        "I’m just one face in the crowd",
-        "Oh, after midnight, I’m free to be wild",
-        "Dancing alone but with a smile",
-        "This is where I belong, where I shine",
-        "Under the stars, feeling divine."
-    ]
-}
+# Ground a user for a specified amount of time
+@tree.command(name="ground", description="Grounds a user for a specified amount of time.")
+@has_restricted_roles()
+async def ground(interaction: discord.Interaction, user: discord.Member, duration: int = GROUND_DURATION_MINUTES):
+    # Check if the grounded role exists
+    grounded_role = interaction.guild.get_role(GROUNDED_ROLE_ID)
+    if not grounded_role:
+        await interaction.response.send_message("Grounded role not found!", ephemeral=True)
+        return
 
-# Excluded users (by ID and username)
-EXCLUDED_USER_IDS = [743263377773822042]
-EXCLUDED_USER_NAMES = ["lovee_ariana", "Ari"]
+    # Add the grounded role to the user
+    await user.add_roles(grounded_role)
+    await interaction.response.send_message(f"{user.mention} has been grounded for {duration} minutes.")
 
-# Special user IDs for guaranteed 100% compatibility
-ZEKE_ID = 123456789  # Replace with Zeeke's actual ID
-ALLIE_ID = 987654321  # Replace with Allie's actual ID
+    # Wait for the specified duration
+    await asyncio.sleep(duration * 60)
 
-# Restrict command access to specific roles
-def has_restricted_roles():
-    async def predicate(interaction: discord.Interaction):
-        allowed_roles = ALLOWED_ROLE_IDS
-        user_roles = [role.id for role in interaction.user.roles]
+    # Automatically remove the grounded role after the time passes
+    await user.remove_roles(grounded_role)
+    await interaction.channel.send(f"{user.mention} has been ungrounded.")
 
-        if any(role_id in user_roles for role_id in allowed_roles):
-            return True
+# Unground a user manually
+@tree.command(name="unground", description="Ungrounds a user, removing their grounded status.")
+@has_restricted_roles()
+async def unground(interaction: discord.Interaction, user: discord.Member):
+    grounded_role = interaction.guild.get_role(GROUNDED_ROLE_ID)
+    if not grounded_role:
+        await interaction.response.send_message("Grounded role not found!", ephemeral=True)
+        return
 
-        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
-        return False
-    return app_commands.check(predicate)
+    # Remove the grounded role from the user
+    await user.remove_roles(grounded_role)
+    await interaction.response.send_message(f"{user.mention} has been ungrounded.")
 
 # /8ball command
 EIGHT_BALL_RESPONSES = [
@@ -116,7 +95,7 @@ async def eight_ball(interaction: discord.Interaction, question: str):
     response = random.choice(EIGHT_BALL_RESPONSES)
     await interaction.response.send_message(f"🎱 {response}")
 
-# /choose command - fixed to handle specific options
+# /choose command
 @tree.command(name="choose", description="Randomly choose between up to five options")
 async def choose(interaction: discord.Interaction, option1: str, option2: str, option3: str = None, option4: str = None, option5: str = None):
     options = [option1, option2]
@@ -256,16 +235,15 @@ async def stop_singing(interaction: discord.Interaction):
     await interaction.response.send_message("🎤 Stopping the song! 🎶")
 
 # Send message command
-if not tree.get_command('send_message'):
-    @tree.command(name="send_message", description="Send a message to a specific channel.")
-    @has_restricted_roles()
-    async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
-        try:
-            await channel.send(message)
-            await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
-        except Exception as e:
-            logging.error(f"Error in /send_message command: {e}")
-            await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
+@tree.command(name="send_message", description="Send a message to a specific channel.")
+@has_restricted_roles()
+async def send_message(interaction: discord.Interaction, channel: discord.TextChannel, *, message: str):
+    try:
+        await channel.send(message)
+        await interaction.response.send_message(f"Message sent to {channel.mention}", ephemeral=True)
+    except Exception as e:
+        logging.error(f"Error in /send_message command: {e}")
+        await interaction.response.send_message("An error occurred while sending the message.", ephemeral=True)
 
 # Copy profile command
 @tree.command(name="copy", description="Copy another user's profile.")
