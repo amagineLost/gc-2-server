@@ -361,17 +361,23 @@ def load_marriages():
     except Exception as e:
         logging.error(f"Error loading marriages: {e}")
 
-# Message delete detection
+# Message delete detection (ignores bot messages)
 @bot.event
 async def on_message_delete(message):
+    # Check if the message author is a bot
+    if message.author.bot:
+        return  # Ignore messages deleted by bots
+    
     if message.guild and message.content:
         try:
+            # Check if the deleted message was a reply to someone
             if message.reference and message.reference.resolved:
                 replied_user = message.reference.resolved.author
                 reply_info = f"(This was a reply to {replied_user.mention})"
             else:
                 reply_info = ""
 
+            # Send an embed with information about the deleted message
             embed = discord.Embed(
                 description=f"{message.author.mention} just deleted a message: '{message.content}' {reply_info} in {message.channel.mention}",
                 color=discord.Color.red()
